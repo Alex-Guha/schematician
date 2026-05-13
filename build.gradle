@@ -124,8 +124,8 @@ configurations {
 dependencies {
     // Veil — required at compile + runtime for foundry.veil.api.client.render.* (PostPipeline,
     // PostProcessingManager, VeilRenderLevelStageEvent). compileOnly + localRuntime so we don't
-    // publish a maven pom dep — at modpack-install time Veil is resolved by NeoForge's mod
-    // dependency declaration in neoforge.mods.toml.
+    // publish a maven pom dep — at install time Veil is resolved by NeoForge's mod dependency
+    // declaration in neoforge.mods.toml.
     // `exclude group: "maven.modrinth"` skips transitive deps Veil pulls from the Modrinth maven
     // (Iris/Sodium); we don't have that repo wired and don't need them.
     compileOnly("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") {
