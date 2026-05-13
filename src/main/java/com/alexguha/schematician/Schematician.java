@@ -12,7 +12,6 @@ import net.minecraft.world.item.Item;
 import net.minecraft.world.item.Rarity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
-import net.neoforged.fml.ModList;
 import net.neoforged.fml.common.Mod;
 import net.neoforged.fml.event.lifecycle.FMLCommonSetupEvent;
 import net.neoforged.neoforge.registries.DeferredHolder;
@@ -46,10 +45,6 @@ public class Schematician {
         ITEMS.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
 
-        modEventBus.addListener((FMLCommonSetupEvent event) -> {
-            if (ModList.get().isLoaded("create")) {
-                CreateCompat.registerGogglesPredicate();
-            }
-        });
+        modEventBus.addListener((FMLCommonSetupEvent event) -> CreateCompat.registerGogglesPredicate());
     }
 }

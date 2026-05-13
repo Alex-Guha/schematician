@@ -1,8 +1,4 @@
 {
-  "neoforge:conditions": [
-    { "type": "neoforge:mod_loaded", "modid": "aeronautics" },
-    { "type": "neoforge:mod_loaded", "modid": "simulated" }
-  ],
   "parent": "minecraft:recipes/root",
   "criteria": {
     "has_aviators_goggles": {

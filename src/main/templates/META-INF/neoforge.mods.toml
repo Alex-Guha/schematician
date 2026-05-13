@@ -40,27 +40,28 @@ config="${mod_id}.mixins.json"
     ordering="NONE"
     side="CLIENT"
 
-# Optional: only used by the goggles crafting recipe (gated by neoforge:mod_loaded
-# conditions on the recipe JSON). The mod runs fine without them.
-[[dependencies.${mod_id}]]
-    modId="aeronautics"
-    type="optional"
-    versionRange="[0,)"
-    ordering="NONE"
-    side="BOTH"
-
-[[dependencies.${mod_id}]]
-    modId="simulated"
-    type="optional"
-    versionRange="[0,)"
-    ordering="NONE"
-    side="BOTH"
-
-# Optional: when present, the goggles register with Create's overlay system so worn-goggles
-# tooltips (stress, fluid, rotation, etc.) show up the same as Aviator's Goggles.
+# Create — required transitively via Aeronautics, but declared here so a missing-Create install
+# fails fast with a clear message and so we can register with Create's goggles-overlay system.
 [[dependencies.${mod_id}]]
     modId="create"
-    type="optional"
+    type="required"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+# Aeronautics — Schematician is built around it (the drafting-view shader is derived from
+# Aeronautics' outline_diagram pipeline) and the goggles recipe consumes Aviator's Goggles.
+[[dependencies.${mod_id}]]
+    modId="aeronautics"
+    type="required"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+# Simulated — provides the Physics Assembler used in the recipe; planned future integrations.
+[[dependencies.${mod_id}]]
+    modId="simulated"
+    type="required"
     versionRange="[0,)"
     ordering="NONE"
     side="BOTH"

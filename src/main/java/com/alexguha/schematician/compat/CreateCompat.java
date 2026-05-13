@@ -4,10 +4,8 @@ import com.alexguha.schematician.Schematician;
 import com.simibubi.create.content.equipment.goggles.GogglesItem;
 import net.minecraft.world.entity.EquipmentSlot;
 
-// IMPORTANT: This class imports Create. Never reference it from a code path that runs when Create
-// is absent — the JVM will fail to link it. Schematician's main constructor gates the call on
-// ModList.isLoaded("create"). All Create-touching code lives here so the rest of the mod stays
-// loadable without Create.
+// All Create-touching glue lives here. Create is a required dep so we don't need a ModList gate;
+// keeping the separation makes future Aeronautics/Simulated compat classes easier to organize.
 public final class CreateCompat {
     private CreateCompat() {}
 

@@ -10,17 +10,18 @@ Alpha. Single item, single pipeline, fixed palette. Tier variants and per-player
 
 ## Requirements
 
+All required — Schematician is built around the Create / Aeronautics / Simulated stack and integrates with each directly.
+
 - Minecraft 1.21.1
 - NeoForge 21.1.226+
-- [Veil](https://modrinth.com/mod/veil) (FoundryMC) — required, drives the post-process pipeline
-- [Create](https://www.curseforge.com/minecraft/mc-mods/create) — optional, when present the goggles register with Create's overlay system (stress, fluid, rotation tooltips) the same as Aviator's Goggles
-- [Create: Aeronautics / Simulated](https://github.com/Creators-of-Aeronautics/Simulated-Project) — optional, only needed to craft the goggles
+- [Veil](https://modrinth.com/mod/veil) (FoundryMC) — drives the post-process pipeline
+- [Create](https://www.curseforge.com/minecraft/mc-mods/create) — provides the goggles overlay system (stress, fluid, rotation tooltips); also required transitively via Aeronautics
+- [Create: Aeronautics](https://github.com/Creators-of-Aeronautics/Simulated-Project) — the drafting-view shader is derived from Aeronautics' `outline_diagram` pipeline and the goggles recipe consumes Aviator's Goggles
+- [Simulated](https://github.com/Creators-of-Aeronautics/Simulated-Project) — supplies the Physics Assembler used in the recipe; planned future integrations
 
 ## Crafting
 
 `Aviator's Goggles` (Create: Aeronautics) + `Physics Assembler` (Simulated) → `Schematician's Goggles` (shapeless).
-
-The recipe is gated by `neoforge:mod_loaded` on both mods, so installing Schematician without them is harmless — the goggles still register and work in creative, you just can't craft them.
 
 ## Roadmap
 
