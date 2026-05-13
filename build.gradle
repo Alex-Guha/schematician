@@ -27,7 +27,13 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Add here additional repositories if required by some of the dependencies below.
+    // Veil (FoundryMC) — drafting_view post pipeline reuses Veil's PostProcessingManager.
+    // TODO: confirm exact maven URL/coords once we can read Simulated-Project's build.gradle
+    // (added as a reference submodule in the parent repo).
+    maven {
+        name = "BlameJared"
+        url = "https://maven.blamejared.com/"
+    }
 }
 
 base {
@@ -118,6 +124,17 @@ configurations {
 }
 
 dependencies {
+    // Veil — required for foundry.veil.api.client.render.* (PostPipeline, PostProcessingManager,
+    // VeilRenderLevelStageEvent). Pin the exact coord+version once we've cribbed it from
+    // Simulated-Project's build.gradle (added as a submodule at ../references/Simulated-Project).
+    // compileOnly "foundry.veil:veil-neoforge-1.21.1:<TODO>"
+    // localRuntime "foundry.veil:veil-neoforge-1.21.1:<TODO>"
+
+    // Simulated (Create: Aeronautics base) — only needed at runtime because the post pipeline
+    // shader references `simulated:textures/effects/diagram_palette.png` and `…/dither.png`.
+    // Drop this dep entirely if we ever vendor those PNGs under aerogoggles' own assets.
+    // localRuntime "..."
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

@@ -1,0 +1,10 @@
+{
+  "stages": [
+    {
+      "type": "veil:blit",
+      "shader": "aerogoggles:drafting_view/drafting_view",
+      "in": "minecraft:main",
+      "clear": false
+    }
+  ]
+}
