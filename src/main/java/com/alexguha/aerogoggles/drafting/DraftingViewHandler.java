@@ -6,23 +6,17 @@ import foundry.veil.api.client.render.VeilRenderSystem;
 import foundry.veil.api.client.render.post.PostPipeline;
 import foundry.veil.api.client.render.post.PostProcessingManager;
 import net.minecraft.client.Minecraft;
+import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
+import net.minecraft.world.entity.EquipmentSlot;
 
 public class DraftingViewHandler {
 
     private static final ResourceLocation POST_PIPELINE_ID = ResourceLocation.fromNamespaceAndPath(AeroGoggles.MODID, "drafting_view");
+    private static final boolean PIXELATE = true;
 
-    private static boolean active = false;
-    private static boolean pixelate = true;
-
-    public static void tickKeybind() {
-        if (DraftingKeys.TOGGLE_DRAFTING_VIEW.getKeybind() != null && DraftingKeys.TOGGLE_DRAFTING_VIEW.getKeybind().consumeClick()) {
-            active = !active;
-        }
-    }
-
-    public static void applyIfActive() {
-        if (!active) {
+    public static void applyIfWearingGoggles() {
+        if (!isWearingAeroGoggles()) {
             return;
         }
 
@@ -38,8 +32,16 @@ public class DraftingViewHandler {
         pipeline.getUniformSafe("LineShadowColor").setVector(0x69 / 255.0f, 0x69 / 255.0f, 0x65 / 255.0f, 1.0f);
         pipeline.getUniformSafe("InSize").setVector((float) window.getWidth(), (float) window.getHeight());
         pipeline.getUniformSafe("PaletteOffset").setFloat(0.25f);
-        pipeline.getUniformSafe("Pixelate").setFloat(pixelate ? 1.0f : 0.0f);
+        pipeline.getUniformSafe("Pixelate").setFloat(PIXELATE ? 1.0f : 0.0f);
 
         manager.runPipeline(pipeline);
+    }
+
+    private static boolean isWearingAeroGoggles() {
+        final LocalPlayer player = Minecraft.getInstance().player;
+        if (player == null) {
+            return false;
+        }
+        return player.getItemBySlot(EquipmentSlot.HEAD).is(AeroGoggles.AERO_GOGGLES.asItem());
     }
 }
