@@ -23,6 +23,20 @@ All required — Schematician is built around the Create / Aeronautics / Simulat
 
 `Aviator's Goggles` (Create: Aeronautics) + `Contraption Diagram` (Simulated) → `Schematician's Goggles` (shapeless).
 
+## Tooltip text
+
+The in-game tooltip on the goggles uses Create's shift-expand format (same system as Aviator's Goggles). All copy lives in [`src/main/resources/assets/schematician/lang/en_us.json`](src/main/resources/assets/schematician/lang/en_us.json) under these keys:
+
+| Lang key (suffix on `item.schematician.schematicians_goggles.tooltip.`) | Where it shows | Notes |
+| --- | --- | --- |
+| `summary` | Inside the Shift expansion (top) | Wrap keywords in `_underscores_` for the yellow highlight. |
+| `condition1` | Inside the Shift expansion, gray header | e.g. "When looking at blocks". Add `condition2`, `condition3`, … to chain more sections. |
+| `behaviour1` | Inside the Shift expansion, indented under `condition1` | Same `_underscore_` highlighting. Pairs 1:1 with the matching `conditionN`. |
+| `state.on` / `state.off` | Always visible | Driven by the `drafting_view_enabled` ItemStack component. |
+| `toggle_hint` | Beside the state line, only while Shift is held | Discoverability for the right-click toggle. |
+
+The Shift-expand wiring is registered in [`compat/CreateCompat.java`](src/main/java/com/alexguha/schematician/compat/CreateCompat.java) (`registerGogglesTooltip`), and the always-visible state line + Shift-only toggle hint are emitted from [`item/SchematicianGogglesItem.java`](src/main/java/com/alexguha/schematician/item/SchematicianGogglesItem.java) (`appendHoverText`).
+
 ## Roadmap
 
 - [ ] **Unique item icon** — `src/main/resources/assets/schematician/textures/item/schematicians_goggles.png` (16×16). Currently a placeholder derived from Aviator's Goggles.

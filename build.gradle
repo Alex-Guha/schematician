@@ -149,6 +149,13 @@ dependencies {
         transitive = false
     }
 
+    // Ponder — compile-only. Bundles catnip's FontHelper.Palette, which appears in the signature
+    // of Create's ItemDescription.Modifier (used by CreateCompat#registerGogglesTooltip). Resolved
+    // transitively at runtime via Create, so no localRuntime entry needed.
+    compileOnly("net.createmod.ponder:ponder-neoforge:${ponder_version}") {
+        transitive = false
+    }
+
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
     // compileOnly "mezz.jei:jei-${mc_version}-common-api:${jei_version}"

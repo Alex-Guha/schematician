@@ -1,6 +1,7 @@
 package com.alexguha.schematician;
 
 import com.alexguha.schematician.compat.CreateCompat;
+import com.alexguha.schematician.component.SchematicianDataComponents;
 import com.alexguha.schematician.item.SchematicianArmorMaterials;
 import com.alexguha.schematician.item.SchematicianGogglesItem;
 import com.mojang.logging.LogUtils;
@@ -43,7 +44,11 @@ public class Schematician {
         SchematicianArmorMaterials.ARMOR_MATERIALS.register(modEventBus);
         ITEMS.register(modEventBus);
         CREATIVE_MODE_TABS.register(modEventBus);
+        SchematicianDataComponents.COMPONENTS.register(modEventBus);
 
-        modEventBus.addListener((FMLCommonSetupEvent event) -> CreateCompat.registerGogglesPredicate());
+        modEventBus.addListener((FMLCommonSetupEvent event) -> {
+            CreateCompat.registerGogglesPredicate();
+            CreateCompat.registerGogglesTooltip();
+        });
     }
 }

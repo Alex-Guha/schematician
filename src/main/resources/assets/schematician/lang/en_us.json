@@ -1,4 +1,10 @@
 {
   "itemGroup.schematician": "Schematician",
-  "item.schematician.schematicians_goggles": "Schematician's Goggles"
+  "item.schematician.schematicians_goggles": "Schematician's Goggles",
+  "item.schematician.schematicians_goggles.tooltip.summary": "Overlays the world with a _drafting / blueprint_ post-process. Preserves the _Create goggle HUD_ while worn.",
+  "item.schematician.schematicians_goggles.tooltip.condition1": "When looking at blocks",
+  "item.schematician.schematicians_goggles.tooltip.behaviour1": "_Kinetic components_ show added _Stress Impact_ or _Capacity_. _Stressometers_ report their _attached network_. Other blocks reveal _item_ and _fluid_ content.",
+  "item.schematician.schematicians_goggles.tooltip.state.on": "Drafting view: ON",
+  "item.schematician.schematicians_goggles.tooltip.state.off": "Drafting view: OFF",
+  "item.schematician.schematicians_goggles.tooltip.toggle_hint": "Right-click in hand to toggle"
 }

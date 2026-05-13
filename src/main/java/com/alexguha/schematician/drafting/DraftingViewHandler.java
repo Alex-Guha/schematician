@@ -1,6 +1,7 @@
 package com.alexguha.schematician.drafting;
 
 import com.alexguha.schematician.Schematician;
+import com.alexguha.schematician.component.SchematicianDataComponents;
 import com.mojang.blaze3d.platform.Window;
 import foundry.veil.api.client.render.VeilRenderSystem;
 import foundry.veil.api.client.render.post.PostPipeline;
@@ -9,6 +10,7 @@ import net.minecraft.client.Minecraft;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
+import net.minecraft.world.item.ItemStack;
 
 public class DraftingViewHandler {
 
@@ -31,7 +33,7 @@ public class DraftingViewHandler {
     private static final boolean PIXELATE = true;
 
     public static void applyIfWearingGoggles() {
-        if (!isWearingGoggles()) {
+        if (!shouldRenderDraftingView()) {
             return;
         }
 
@@ -52,11 +54,15 @@ public class DraftingViewHandler {
         manager.runPipeline(pipeline);
     }
 
-    private static boolean isWearingGoggles() {
+    private static boolean shouldRenderDraftingView() {
         final LocalPlayer player = Minecraft.getInstance().player;
         if (player == null) {
             return false;
         }
-        return player.getItemBySlot(EquipmentSlot.HEAD).is(Schematician.SCHEMATICIANS_GOGGLES.asItem());
+        final ItemStack head = player.getItemBySlot(EquipmentSlot.HEAD);
+        if (!head.is(Schematician.SCHEMATICIANS_GOGGLES.asItem())) {
+            return false;
+        }
+        return head.getOrDefault(SchematicianDataComponents.DRAFTING_VIEW_ENABLED.get(), Boolean.TRUE);
     }
 }
