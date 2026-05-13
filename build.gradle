@@ -32,6 +32,11 @@ repositories {
         name = "BlameJared"
         url = "https://maven.blamejared.com/"
     }
+    // Create's official maven; only host of create-1.21.1 builds.
+    maven {
+        name = "Create"
+        url = "https://maven.createmod.net/"
+    }
 }
 
 base {
@@ -133,6 +138,15 @@ dependencies {
     }
     localRuntime("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") {
         exclude group: "maven.modrinth"
+    }
+
+    // Create — compileOnly for the GogglesItem.addIsWearingPredicate hook (registers our goggles
+    // with Create's overlay system). Optional integration: at runtime we gate on
+    // ModList.isLoaded("create") and isolate the Create reference in compat.CreateCompat so the
+    // class only links when Create is actually present. No localRuntime — Create pulls in Flywheel,
+    // Registrate, Ponder, etc. and we don't need the overlay to render in dev.
+    compileOnly("com.simibubi.create:create-${minecraft_version}:${create_version}") {
+        transitive = false
     }
 
     // Example optional mod dependency with JEI
