@@ -19,11 +19,9 @@ import net.minecraft.client.multiplayer.ClientLevel;
 import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
-import net.minecraft.client.renderer.debug.DebugRenderer;
 import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
-import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
@@ -33,24 +31,24 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-// Veil render-stage handler for the force overlay. For the targeted sublevel:
-//   - Draws a small filled cube at the rotation point (== CoM in local frame).
-//   - For each ForceGroup in the latest snapshot, clusters near-parallel forces and renders
-//     one colored line + arrowhead per cluster, scaled by config.
+// Veil render-stage handler for the force overlay.
 //
-// Coordinate frames:
-//   - PointForce.point and renderPose.rotationPoint() are both in the sublevel's local block
-//     frame (same frame used by Sable's vanilla sublevel block renderer).
-//   - We translate the PoseStack to (renderPose.position() - camera), then rotate by
-//     renderPose.orientation(). This puts our local origin at the rotation point with axes
-//     aligned to the sublevel — so a force at `point` is drawn at `point - rotationPoint`.
+// Renders at AFTER_LEVEL so we land after DraftingViewHandler.applyIfWearingGoggles has run the
+// post-process pipeline — the overlay then draws on top of the post-processed image without
+// being palette-shifted itself. Uses OverlayRenderTypes.forceLines() to disable depth testing,
+// so vectors and the CoM marker remain visible through the sublevel's own blocks.
+//
+// Coordinate frame: PointForce.point and renderPose.rotationPoint() are both in the sublevel's
+// local block frame. We translate the PoseStack to (renderPose.position() - camera), rotate by
+// renderPose.orientation(), and the local origin then sits at the rotation point with axes
+// aligned to the sublevel — so a force at `point` is drawn at `point - rotationPoint`.
 public final class ForceOverlayRenderer {
     private ForceOverlayRenderer() {}
 
     public static void onRenderStage(final VeilRenderLevelStageEvent.Stage stage,
                                      final MultiBufferSource.BufferSource bufferSource,
                                      final Camera camera) {
-        if (stage != VeilRenderLevelStageEvent.Stage.AFTER_TRANSLUCENT_BLOCKS) return;
+        if (stage != VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) return;
 
         final Minecraft mc = Minecraft.getInstance();
         final LocalPlayer player = mc.player;
@@ -76,28 +74,36 @@ public final class ForceOverlayRenderer {
         poseStack.translate(renderPos.x() - camPos.x, renderPos.y() - camPos.y, renderPos.z() - camPos.z);
         poseStack.mulPose(new Quaternionf(renderPose.orientation()));
 
-        renderCenterOfMass(poseStack, bufferSource);
+        final RenderType type = OverlayRenderTypes.forceLines();
+        final VertexConsumer consumer = bufferSource.getBuffer(type);
+
+        renderCenterOfMass(poseStack, consumer);
 
         final ForceOverlayClient.ForceSnapshot snapshot = ForceOverlayClient.currentSnapshot();
         if (snapshot != null) {
-            renderForces(poseStack, bufferSource, snapshot, rotationPoint);
+            renderForces(poseStack, consumer, snapshot, rotationPoint);
         }
 
         poseStack.popPose();
-        bufferSource.endLastBatch();
+
+        // Flush our render type right now so the lines reach the framebuffer inside AFTER_LEVEL,
+        // after the drafting-view post-process has already run for this frame.
+        bufferSource.endBatch(type);
     }
 
-    private static void renderCenterOfMass(final PoseStack poseStack, final MultiBufferSource bufferSource) {
-        // Origin of the current matrix == CoM. Small filled box, white-ish, semi-transparent.
-        final double half = 0.12;
-        DebugRenderer.renderFilledBox(
-                poseStack, bufferSource,
-                new AABB(-half, -half, -half, half, half, half),
-                0.95f, 0.95f, 1.0f, 0.85f);
+    private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer) {
+        // Wireframe diamond / octahedron-ish marker: 3 perpendicular axis-aligned lines at the
+        // origin (which is the rotation point, == CoM). Bright cyan reads well against the
+        // drafting-view palette.
+        final double size = 0.25;
+        final float r = 0.4f, g = 1.0f, b = 1.0f;
+        line(poseStack, consumer, -size, 0, 0,  size, 0, 0, r, g, b, 1, 0, 0);
+        line(poseStack, consumer,  0, -size, 0, 0,  size, 0, r, g, b, 0, 1, 0);
+        line(poseStack, consumer,  0, 0, -size, 0, 0,  size, r, g, b, 0, 0, 1);
     }
 
     private static void renderForces(final PoseStack poseStack,
-                                     final MultiBufferSource bufferSource,
+                                     final VertexConsumer consumer,
                                      final ForceOverlayClient.ForceSnapshot snapshot,
                                      final Vector3dc rotationPoint) {
         final double scale = SchematicianClientConfig.METERS_PER_NEWTON.get();
@@ -105,16 +111,14 @@ public final class ForceOverlayRenderer {
         final double maxLen = SchematicianClientConfig.MAX_ARROW_LENGTH.get();
         final double angleThreshold = SchematicianClientConfig.CLUSTER_ANGLE_RADIANS.get();
 
-        final VertexConsumer consumer = bufferSource.getBuffer(RenderType.lines());
-
         for (final Map.Entry<ResourceLocation, List<QueuedForceGroup.PointForce>> entry : snapshot.forces().entrySet()) {
             final ForceGroup group = ForceGroups.REGISTRY.get(entry.getKey());
             if (group == null) continue;
 
-            final int packedColor = 0xFF000000 | group.color();
-            final float r = ((packedColor >> 16) & 0xFF) / 255.0f;
-            final float g = ((packedColor >> 8) & 0xFF) / 255.0f;
-            final float b = (packedColor & 0xFF) / 255.0f;
+            final int color = group.color();
+            final float r = ((color >> 16) & 0xFF) / 255.0f;
+            final float g = ((color >> 8) & 0xFF) / 255.0f;
+            final float b = (color & 0xFF) / 255.0f;
 
             final List<ForceClusterer.Cluster> clusters = ForceClusterer.cluster(entry.getValue(), angleThreshold);
             for (final ForceClusterer.Cluster c : clusters) {
@@ -141,8 +145,6 @@ public final class ForceOverlayRenderer {
 
         final Vector3d dir = new Vector3d(forceVec).div(magnitude);
 
-        // Origin of poseStack is at rotationPoint (in block-frame). Force point is in block-frame
-        // too, so we subtract rotationPoint to get the offset within the current matrix.
         final double bx = forcePoint.x() - rotationPoint.x();
         final double by = forcePoint.y() - rotationPoint.y();
         final double bz = forcePoint.z() - rotationPoint.z();
@@ -152,15 +154,14 @@ public final class ForceOverlayRenderer {
         final double tz = bz + dir.z * length;
 
         // Shaft.
-        line(poseStack, consumer, bx, by, bz, tx, ty, tz, r, g, b, dir);
+        line(poseStack, consumer, bx, by, bz, tx, ty, tz, r, g, b, dir.x, dir.y, dir.z);
 
-        // Arrowhead: two short backwards-angled lines, length = 20% of shaft, splayed off-axis.
-        // Build any vector not parallel to dir to derive a perpendicular basis.
+        // Arrowhead: 4 short backwards-angled lines splayed off-axis.
         final Vector3d ref = Math.abs(dir.y) < 0.9 ? new Vector3d(0, 1, 0) : new Vector3d(1, 0, 0);
         final Vector3d perp1 = new Vector3d(dir).cross(ref).normalize();
         final Vector3d perp2 = new Vector3d(dir).cross(perp1).normalize();
 
-        final double headLen = Math.max(0.12, length * 0.18);
+        final double headLen = Math.max(0.18, length * 0.2);
         final double headSplay = headLen * 0.55;
 
         final double baseX = tx - dir.x * headLen;
@@ -173,7 +174,7 @@ public final class ForceOverlayRenderer {
             line(poseStack, consumer,
                     baseX + axis.x * headSplay * sign, baseY + axis.y * headSplay * sign, baseZ + axis.z * headSplay * sign,
                     tx, ty, tz,
-                    r, g, b, dir);
+                    r, g, b, dir.x, dir.y, dir.z);
         }
     }
 
@@ -181,14 +182,14 @@ public final class ForceOverlayRenderer {
                              final double x1, final double y1, final double z1,
                              final double x2, final double y2, final double z2,
                              final float r, final float g, final float b,
-                             final Vector3d normal) {
+                             final double nx, final double ny, final double nz) {
         final var pose = poseStack.last();
         consumer.addVertex(pose, (float) x1, (float) y1, (float) z1)
                 .setColor(r, g, b, 1.0f)
-                .setNormal(pose, (float) normal.x, (float) normal.y, (float) normal.z);
+                .setNormal(pose, (float) nx, (float) ny, (float) nz);
         consumer.addVertex(pose, (float) x2, (float) y2, (float) z2)
                 .setColor(r, g, b, 1.0f)
-                .setNormal(pose, (float) normal.x, (float) normal.y, (float) normal.z);
+                .setNormal(pose, (float) nx, (float) ny, (float) nz);
     }
 
     private static boolean isWearingActiveGoggles(final LocalPlayer player) {
