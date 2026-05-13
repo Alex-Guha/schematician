@@ -1,6 +1,7 @@
 package com.alexguha.schematician;
 
 import com.alexguha.schematician.drafting.DraftingViewHandler;
+import com.alexguha.schematician.overlay.ForceOverlayRenderer;
 import foundry.veil.api.event.VeilRenderLevelStageEvent;
 import foundry.veil.platform.VeilEventPlatform;
 import net.neoforged.api.distmarker.Dist;
@@ -24,6 +25,7 @@ public class SchematicianClient {
                     if (stage == VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) {
                         DraftingViewHandler.applyIfWearingGoggles();
                     }
+                    ForceOverlayRenderer.onRenderStage(stage, bufferSource, camera);
                 });
     }
 }

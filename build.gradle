@@ -37,6 +37,12 @@ repositories {
         name = "Create"
         url = "https://maven.createmod.net/"
     }
+    // Sable (ryanhcode) — physics/sublevel framework. Required transitively via Aeronautics
+    // already, but we compile against its API directly for the force-overlay feature.
+    maven {
+        name = "Sable"
+        url = "https://maven.ryanhcode.dev/releases"
+    }
 }
 
 base {
@@ -153,6 +159,20 @@ dependencies {
     // of Create's ItemDescription.Modifier (used by CreateCompat#registerGogglesTooltip). Resolved
     // transitively at runtime via Create, so no localRuntime entry needed.
     compileOnly("net.createmod.ponder:ponder-neoforge:${ponder_version}") {
+        transitive = false
+    }
+
+    // Sable — physics/sublevel framework used by Aeronautics. We compile against SubLevel,
+    // SubLevelContainer, ForceGroup, QueuedForceGroup.PointForce, and the post-physics-tick event
+    // for the force-overlay feature. Required at runtime, but pulled transitively via Aeronautics,
+    // so compileOnly only (no localRuntime — Aeronautics provides it in dev runs).
+    compileOnly("dev.ryanhcode.sable:sable-neoforge-${minecraft_version}:${sable_version}") {
+        transitive = false
+    }
+
+    // Sable companion — separate artifact for the math types (Pose3d/Pose3dc) and access-helper
+    // interfaces. Shaded into Sable at runtime; only needed compile-time so we can name the types.
+    compileOnly("dev.ryanhcode.sable-companion:sable-companion-common-${minecraft_version}:${sable_companion_version}") {
         transitive = false
     }
 

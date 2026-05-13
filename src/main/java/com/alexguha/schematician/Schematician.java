@@ -2,8 +2,11 @@ package com.alexguha.schematician;
 
 import com.alexguha.schematician.compat.CreateCompat;
 import com.alexguha.schematician.component.SchematicianDataComponents;
+import com.alexguha.schematician.config.SchematicianClientConfig;
 import com.alexguha.schematician.item.SchematicianArmorMaterials;
 import com.alexguha.schematician.item.SchematicianGogglesItem;
+import net.neoforged.api.distmarker.Dist;
+import net.neoforged.fml.loading.FMLEnvironment;
 import com.mojang.logging.LogUtils;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.network.chat.Component;
@@ -50,5 +53,9 @@ public class Schematician {
             CreateCompat.registerGogglesPredicate();
             CreateCompat.registerGogglesTooltip();
         });
+
+        if (FMLEnvironment.dist == Dist.CLIENT) {
+            SchematicianClientConfig.register(modContainer);
+        }
     }
 }

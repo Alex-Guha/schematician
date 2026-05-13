@@ -65,3 +65,12 @@ config="${mod_id}.mixins.json"
     versionRange="[0,)"
     ordering="NONE"
     side="BOTH"
+
+# Sable — physics/sublevel framework. Pulled transitively via Aeronautics already, but declared
+# explicitly so the force-overlay feature fails fast on a broken install.
+[[dependencies.${mod_id}]]
+    modId="sable"
+    type="required"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
