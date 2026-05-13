@@ -9,11 +9,11 @@
         ]
       }
     },
-    "has_physics_assembler": {
+    "has_contraption_diagram": {
       "trigger": "minecraft:inventory_changed",
       "conditions": {
         "items": [
-          { "items": "simulated:physics_assembler" }
+          { "items": "simulated:contraption_diagram" }
         ]
       }
     },
@@ -25,7 +25,7 @@
     }
   },
   "requirements": [
-    [ "has_aviators_goggles", "has_physics_assembler", "has_the_recipe" ]
+    [ "has_aviators_goggles", "has_contraption_diagram", "has_the_recipe" ]
   ],
   "rewards": {
     "recipes": [ "schematician:schematicians_goggles" ]

@@ -9,7 +9,6 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.world.item.CreativeModeTab;
 import net.minecraft.world.item.CreativeModeTabs;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.Rarity;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
@@ -29,7 +28,7 @@ public class Schematician {
 
     public static final DeferredItem<SchematicianGogglesItem> SCHEMATICIANS_GOGGLES = ITEMS.register(
             "schematicians_goggles",
-            () -> new SchematicianGogglesItem(new Item.Properties().stacksTo(1).rarity(Rarity.UNCOMMON)));
+            () -> new SchematicianGogglesItem(new Item.Properties().stacksTo(1)));
 
     public static final DeferredHolder<CreativeModeTab, CreativeModeTab> SCHEMATICIAN_TAB = CREATIVE_MODE_TABS.register(
             "schematician_tab",

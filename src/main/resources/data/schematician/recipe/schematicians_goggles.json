@@ -3,7 +3,7 @@
   "category": "misc",
   "ingredients": [
     { "item": "aeronautics:aviators_goggles" },
-    { "item": "simulated:physics_assembler" }
+    { "item": "simulated:contraption_diagram" }
   ],
   "result": {
     "count": 1,

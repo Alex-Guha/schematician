@@ -21,7 +21,7 @@ All required — Schematician is built around the Create / Aeronautics / Simulat
 
 ## Crafting
 
-`Aviator's Goggles` (Create: Aeronautics) + `Physics Assembler` (Simulated) → `Schematician's Goggles` (shapeless).
+`Aviator's Goggles` (Create: Aeronautics) + `Contraption Diagram` (Simulated) → `Schematician's Goggles` (shapeless).
 
 ## Roadmap
 
