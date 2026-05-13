@@ -27,9 +27,7 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Veil (FoundryMC) — drafting_view post pipeline reuses Veil's PostProcessingManager.
-    // TODO: confirm exact maven URL/coords once we can read Simulated-Project's build.gradle
-    // (added as a reference submodule in the parent repo).
+    // Veil (FoundryMC) is published here; drafting_view reuses its PostProcessingManager.
     maven {
         name = "BlameJared"
         url = "https://maven.blamejared.com/"
@@ -124,16 +122,18 @@ configurations {
 }
 
 dependencies {
-    // Veil — required for foundry.veil.api.client.render.* (PostPipeline, PostProcessingManager,
-    // VeilRenderLevelStageEvent). Pin the exact coord+version once we've cribbed it from
-    // Simulated-Project's build.gradle (added as a submodule at ../references/Simulated-Project).
-    // compileOnly "foundry.veil:veil-neoforge-1.21.1:<TODO>"
-    // localRuntime "foundry.veil:veil-neoforge-1.21.1:<TODO>"
-
-    // Simulated (Create: Aeronautics base) — only needed at runtime because the post pipeline
-    // shader references `simulated:textures/effects/diagram_palette.png` and `…/dither.png`.
-    // Drop this dep entirely if we ever vendor those PNGs under aerogoggles' own assets.
-    // localRuntime "..."
+    // Veil — required at compile + runtime for foundry.veil.api.client.render.* (PostPipeline,
+    // PostProcessingManager, VeilRenderLevelStageEvent). compileOnly + localRuntime so we don't
+    // publish a maven pom dep — at modpack-install time Veil is resolved by NeoForge's mod
+    // dependency declaration in neoforge.mods.toml.
+    // `exclude group: "maven.modrinth"` skips transitive deps Veil pulls from the Modrinth maven
+    // (Iris/Sodium); we don't have that repo wired and don't need them.
+    compileOnly("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") {
+        exclude group: "maven.modrinth"
+    }
+    localRuntime("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") {
+        exclude group: "maven.modrinth"
+    }
 
     // Example optional mod dependency with JEI
     // The JEI API is declared for compile time use, while the full JEI artifact is used at runtime
@@ -170,6 +170,7 @@ var generateModMetadata = tasks.register("generateModMetadata", ProcessResources
             mod_name               : mod_name,
             mod_license            : mod_license,
             mod_version            : mod_version,
+            veil_version           : veil_version,
     ]
     inputs.properties replaceProperties
     expand replaceProperties

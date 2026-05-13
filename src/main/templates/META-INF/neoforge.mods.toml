@@ -27,3 +27,11 @@ config="${mod_id}.mixins.json"
     versionRange="${minecraft_version_range}"
     ordering="NONE"
     side="BOTH"
+
+# Veil's PostProcessingManager runs the drafting_view pipeline; nothing in the mod works without it.
+[[dependencies.${mod_id}]]
+    modId="veil"
+    type="required"
+    versionRange="[${veil_version},)"
+    ordering="NONE"
+    side="CLIENT"

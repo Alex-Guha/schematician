@@ -1,7 +1,7 @@
 package com.alexguha.aerogoggles;
 
 import com.alexguha.aerogoggles.drafting.DraftingViewHandler;
-import foundry.veil.api.client.render.VeilRenderLevelStageEvent;
+import foundry.veil.api.event.VeilRenderLevelStageEvent;
 import foundry.veil.platform.VeilEventPlatform;
 import net.neoforged.api.distmarker.Dist;
 import net.neoforged.bus.api.SubscribeEvent;
@@ -18,18 +18,12 @@ public class AeroGogglesClient {
 
     @SubscribeEvent
     static void onClientSetup(FMLClientSetupEvent event) {
-        VeilEventPlatform.INSTANCE.onVeilRenderLevelStage((stage,
-                                                          levelRenderer,
-                                                          bufferSource,
-                                                          frustumMatrix,
-                                                          projectionMatrix,
-                                                          renderTick,
-                                                          deltaTracker,
-                                                          camera,
-                                                          frustum) -> {
-            if (stage == VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) {
-                DraftingViewHandler.applyIfWearingGoggles();
-            }
-        });
+        VeilEventPlatform.INSTANCE.onVeilRenderLevelStage(
+                (stage, levelRenderer, bufferSource, matrixStack, frustumMatrix, projectionMatrix,
+                 renderTick, deltaTracker, camera, frustum) -> {
+                    if (stage == VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) {
+                        DraftingViewHandler.applyIfWearingGoggles();
+                    }
+                });
     }
 }
