@@ -1,8 +1,0 @@
-{
-  "vertex": "aerogoggles:drafting_view/drafting_view",
-  "fragment": "aerogoggles:drafting_view/drafting_view",
-  "textures": {
-    "Palette": "aerogoggles:textures/effects/diagram_palette.png",
-    "Dither": "aerogoggles:textures/effects/dither.png"
-  }
-}

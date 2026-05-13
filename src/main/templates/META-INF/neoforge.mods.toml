@@ -1,14 +1,18 @@
 modLoader="javafml"
 loaderVersion="${loader_version_range}"
 license="${mod_license}"
+issueTrackerURL="https://github.com/Alex-Guha/Schematician/issues"
 
 [[mods]]
 modId="${mod_id}"
 version="${mod_version}"
 displayName="${mod_name}"
 authors="Alex Guha"
+credits="Drafting view shader pipeline derived from Create: Aeronautics / Simulated by the Creators-of-Aeronautics team."
+displayURL="https://github.com/Alex-Guha/Schematician"
+logoFile="logo.png"
 description='''
-Adds AeroGoggles: a craftable pair of goggles that, while worn, overlays a Create: Aeronautics drafting-view post-process on the world.
+Wear Schematician's Goggles to see the world through a Create: Aeronautics drafting-view post-process: edge-detected outlines, palette tone-mapping, and dither shading. Crafted from Aviator's Goggles + a Physics Assembler.
 '''
 
 [[mixins]]
@@ -35,3 +39,28 @@ config="${mod_id}.mixins.json"
     versionRange="[${veil_version},)"
     ordering="NONE"
     side="CLIENT"
+
+# Optional: only used by the goggles crafting recipe (gated by neoforge:mod_loaded
+# conditions on the recipe JSON). The mod runs fine without them.
+[[dependencies.${mod_id}]]
+    modId="aeronautics"
+    type="optional"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+[[dependencies.${mod_id}]]
+    modId="simulated"
+    type="optional"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"
+
+# Optional: when present, the goggles register with Create's overlay system so worn-goggles
+# tooltips (stress, fluid, rotation, etc.) show up the same as Aviator's Goggles.
+[[dependencies.${mod_id}]]
+    modId="create"
+    type="optional"
+    versionRange="[0,)"
+    ordering="NONE"
+    side="BOTH"

@@ -1,6 +1,6 @@
 {
   "parent": "minecraft:item/generated",
   "textures": {
-    "layer0": "aerogoggles:item/aero_goggles"
+    "layer0": "schematician:item/schematicians_goggles"
   }
 }

@@ -1,0 +1,8 @@
+{
+  "vertex": "schematician:drafting_view/drafting_view",
+  "fragment": "schematician:drafting_view/drafting_view",
+  "textures": {
+    "Palette": "schematician:textures/effects/diagram_palette.png",
+    "Dither": "schematician:textures/effects/dither.png"
+  }
+}

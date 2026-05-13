@@ -1,0 +1,16 @@
+{
+  "neoforge:conditions": [
+    { "type": "neoforge:mod_loaded", "modid": "aeronautics" },
+    { "type": "neoforge:mod_loaded", "modid": "simulated" }
+  ],
+  "type": "minecraft:crafting_shapeless",
+  "category": "misc",
+  "ingredients": [
+    { "item": "aeronautics:aviators_goggles" },
+    { "item": "simulated:physics_assembler" }
+  ],
+  "result": {
+    "count": 1,
+    "id": "schematician:schematicians_goggles"
+  }
+}

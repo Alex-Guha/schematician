@@ -1,6 +1,6 @@
 {
   "required": true,
-  "package": "com.alexguha.aerogoggles.mixin",
+  "package": "com.alexguha.schematician.mixin",
   "compatibilityLevel": "JAVA_21",
   "mixins": [],
   "injectors": {
