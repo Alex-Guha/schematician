@@ -25,7 +25,7 @@ public class SchematicianClient {
                     if (stage == VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) {
                         DraftingViewHandler.applyIfWearingGoggles();
                     }
-                    ForceOverlayRenderer.onRenderStage(stage, bufferSource, camera);
+                    ForceOverlayRenderer.onRenderStage(stage, bufferSource, camera, frustumMatrix);
                 });
     }
 }

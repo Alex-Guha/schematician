@@ -3,6 +3,7 @@ package com.alexguha.schematician.overlay;
 import com.alexguha.schematician.Schematician;
 import com.alexguha.schematician.component.SchematicianDataComponents;
 import com.alexguha.schematician.config.SchematicianClientConfig;
+import com.mojang.blaze3d.systems.RenderSystem;
 import com.mojang.blaze3d.vertex.PoseStack;
 import com.mojang.blaze3d.vertex.VertexConsumer;
 import dev.ryanhcode.sable.api.physics.force.ForceGroup;
@@ -23,6 +24,8 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import org.joml.Matrix4fStack;
+import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
@@ -38,6 +41,12 @@ import java.util.UUID;
 // being palette-shifted itself. Uses OverlayRenderTypes.forceLines() to disable depth testing,
 // so vectors and the CoM marker remain visible through the sublevel's own blocks.
 //
+// Matrix handling: the post-process call clobbers RenderSystem's modelview matrix (it sets up
+// screen-space matrices for the fullscreen quad and doesn't restore them). We seed it from the
+// frustumMatrix the event handed us, draw, then restore via push/pop on the modelview stack.
+// Without this, vertices submitted in world-relative coords render in identity-view space (the
+// overlay appears glued to the camera, not to the sublevel).
+//
 // Coordinate frame: PointForce.point and renderPose.rotationPoint() are both in the sublevel's
 // local block frame. We translate the PoseStack to (renderPose.position() - camera), rotate by
 // renderPose.orientation(), and the local origin then sits at the rotation point with axes
@@ -47,7 +56,8 @@ public final class ForceOverlayRenderer {
 
     public static void onRenderStage(final VeilRenderLevelStageEvent.Stage stage,
                                      final MultiBufferSource.BufferSource bufferSource,
-                                     final Camera camera) {
+                                     final Camera camera,
+                                     final Matrix4fc frustumMatrix) {
         if (stage != VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) return;
 
         final Minecraft mc = Minecraft.getInstance();
@@ -69,37 +79,45 @@ public final class ForceOverlayRenderer {
         final Vector3dc rotationPoint = renderPose.rotationPoint();
         final Vec3 camPos = camera.getPosition();
 
-        final PoseStack poseStack = new PoseStack();
-        poseStack.pushPose();
-        poseStack.translate(renderPos.x() - camPos.x, renderPos.y() - camPos.y, renderPos.z() - camPos.z);
-        poseStack.mulPose(new Quaternionf(renderPose.orientation()));
+        // Restore the world-render modelview matrix that the drafting-view post-process clobbered
+        // when it bound its fullscreen quad pipeline.
+        final Matrix4fStack mvStack = RenderSystem.getModelViewStack();
+        mvStack.pushMatrix();
+        mvStack.set(frustumMatrix);
+        RenderSystem.applyModelViewMatrix();
 
-        final RenderType type = OverlayRenderTypes.forceLines();
-        final VertexConsumer consumer = bufferSource.getBuffer(type);
+        try {
+            final PoseStack poseStack = new PoseStack();
+            poseStack.translate(renderPos.x() - camPos.x, renderPos.y() - camPos.y, renderPos.z() - camPos.z);
+            poseStack.mulPose(new Quaternionf(renderPose.orientation()));
 
-        renderCenterOfMass(poseStack, consumer);
+            final RenderType type = OverlayRenderTypes.forceLines();
+            final VertexConsumer consumer = bufferSource.getBuffer(type);
 
-        final ForceOverlayClient.ForceSnapshot snapshot = ForceOverlayClient.currentSnapshot();
-        if (snapshot != null) {
-            renderForces(poseStack, consumer, snapshot, rotationPoint);
+            renderCenterOfMass(poseStack, consumer);
+
+            final ForceOverlayClient.ForceSnapshot snapshot = ForceOverlayClient.currentSnapshot();
+            if (snapshot != null) {
+                renderForces(poseStack, consumer, snapshot, rotationPoint);
+            }
+
+            // Flush so the lines reach the framebuffer while our matrices are still in place.
+            bufferSource.endBatch(type);
+        } finally {
+            mvStack.popMatrix();
+            RenderSystem.applyModelViewMatrix();
         }
-
-        poseStack.popPose();
-
-        // Flush our render type right now so the lines reach the framebuffer inside AFTER_LEVEL,
-        // after the drafting-view post-process has already run for this frame.
-        bufferSource.endBatch(type);
     }
 
     private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer) {
-        // Wireframe diamond / octahedron-ish marker: 3 perpendicular axis-aligned lines at the
-        // origin (which is the rotation point, == CoM). Bright cyan reads well against the
-        // drafting-view palette.
-        final double size = 0.25;
-        final float r = 0.4f, g = 1.0f, b = 1.0f;
-        line(poseStack, consumer, -size, 0, 0,  size, 0, 0, r, g, b, 1, 0, 0);
-        line(poseStack, consumer,  0, -size, 0, 0,  size, 0, r, g, b, 0, 1, 0);
-        line(poseStack, consumer,  0, 0, -size, 0, 0,  size, r, g, b, 0, 0, 1);
+        // Compact "dot" marker: 3 short perpendicular line segments through the origin (which is
+        // the rotation point == CoM). Small enough to read as a dot, but the cross shape ensures
+        // a visible silhouette from any viewing angle (a true point can't be drawn via LINES).
+        final double half = 0.08;
+        final float r = 1.0f, g = 1.0f, b = 1.0f;
+        line(poseStack, consumer, -half, 0, 0,  half, 0, 0, r, g, b, 1, 0, 0);
+        line(poseStack, consumer,  0, -half, 0, 0,  half, 0, r, g, b, 0, 1, 0);
+        line(poseStack, consumer,  0, 0, -half, 0, 0,  half, r, g, b, 0, 0, 1);
     }
 
     private static void renderForces(final PoseStack poseStack,
