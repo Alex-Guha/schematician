@@ -16,7 +16,7 @@ All required — Schematician is built around the Create / Aeronautics / Simulat
 
 - Minecraft 1.21.1
 - NeoForge 21.1.226+
-- [Veil](https://modrinth.com/mod/veil) (FoundryMC) — drives the post-process pipeline and custom render types
+- [Veil](https://modrinth.com/mod/veil) (FoundryMC) **4.0.0 exactly** — drives the post-process pipeline and custom render types. Pinned because 4.0.1+ has visual glitches under Iris/shaders.
 - [Create](https://www.curseforge.com/minecraft/mc-mods/create) — provides the goggles overlay system (stress, fluid, rotation tooltips); also required transitively via Aeronautics
 - [Create: Aeronautics](https://github.com/Creators-of-Aeronautics/Simulated-Project) — the drafting-view shader is derived from Aeronautics' `outline_diagram` pipeline and the goggles recipe consumes Aviator's Goggles
 - [Simulated](https://github.com/Creators-of-Aeronautics/Simulated-Project) — supplies the Contraption Diagram used in the recipe; the force overlay mirrors its Contraption Diagram data path
