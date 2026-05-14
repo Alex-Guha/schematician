@@ -46,7 +46,10 @@ public final class ForceOverlayClient {
 
     @Nullable private static UUID targetSubLevelId;
     @Nullable private static ForceSnapshot snapshot;
-    private static long lastHeartbeatTick = Long.MIN_VALUE;
+    // Sentinel that means "never sent" without underflowing `localTick - lastHeartbeatTick`.
+    // Long.MIN_VALUE would overflow the subtraction and make the cadence check always false —
+    // that bug is what hid all the force packets in 0.3.3.
+    private static long lastHeartbeatTick = -HEARTBEAT_INTERVAL_TICKS;
     private static long localTick;
 
     public record ForceSnapshot(
@@ -86,7 +89,7 @@ public final class ForceOverlayClient {
         if (!newTarget.equals(targetSubLevelId)) {
             targetSubLevelId = newTarget;
             snapshot = null;
-            lastHeartbeatTick = Long.MIN_VALUE;
+            lastHeartbeatTick = localTick - HEARTBEAT_INTERVAL_TICKS;
         }
 
         if (localTick - lastHeartbeatTick >= HEARTBEAT_INTERVAL_TICKS) {
