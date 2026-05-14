@@ -55,9 +55,14 @@ import java.util.UUID;
 public final class ForceOverlayRenderer {
     private ForceOverlayRenderer() {}
 
-    // CoM cube half-edge (so the cube's edge length is 2 * COM_HALF). Referenced by both the
-    // cube renderer and the shaft thickness cap below so the two stay in sync.
+    // CoM cube half-edge (so the cube's edge length is 2 * COM_HALF).
     private static final double COM_HALF = 0.08;
+
+    // Tail-bead sphere radius scales with sublevel size (so big contraptions get correspondingly
+    // visible tail beads), capped at 1/3 of the CoM cube's width so the bead can never visually
+    // dominate the CoM marker. All other arrow geometry caps key off this radius.
+    private static final double TAIL_SPHERE_PER_BBOX = 0.005;   // 0.5% of max bbox extent
+    private static final double MAX_TAIL_SPHERE_RADIUS = (COM_HALF * 2.0) / 3.0;
 
     // Arrow-head shape coefficients. Everything else (shaft thickness, cone tip dimensions)
     // is derived from these so a single change here cascades cleanly.
@@ -65,15 +70,11 @@ public final class ForceOverlayRenderer {
     private static final double CONE_RADIUS_PER_LEN = 0.40;     // cone base radius = 40% of cone length
     private static final double SHAFT_RADIUS_PER_CONE = 0.35;   // shaft radius = 35% of cone base radius
 
-    // Cap arrow cylinder radius at the CoM cube half-edge — diameter then matches cube width.
-    private static final double MAX_SHAFT_RADIUS = COM_HALF;
-
-    // The arrow length at which the shaft naturally reaches MAX_SHAFT_RADIUS. Past this point
-    // we feed `MAX_SHAPE_LENGTH` (not the actual length) into the shape calculations, so the
-    // cone tip + shaft thickness freeze together — only the shaft *span* keeps extending.
-    // Without this, long arrows grew an oversized cone on a capped shaft and looked balloon-y.
-    private static final double MAX_SHAPE_LENGTH =
-            MAX_SHAFT_RADIUS / (CONE_LEN_PER_LENGTH * CONE_RADIUS_PER_LEN * SHAFT_RADIUS_PER_CONE);
+    // Diameter caps relative to the tail sphere: shaft ≤ sphere diameter, cone base ≤ 1.5×
+    // sphere diameter. Cone radius binds first (cone:shaft natural ratio 2.86 > cap ratio 1.5),
+    // so the shaft cap is a redundant safety backstop.
+    private static final double CONE_RADIUS_PER_TAIL = 1.5;
+    private static final double SHAFT_RADIUS_PER_TAIL = 1.0;
 
     public static void onRenderStage(final VeilRenderLevelStageEvent.Stage stage,
                                      final MultiBufferSource.BufferSource bufferSource,
@@ -122,7 +123,7 @@ public final class ForceOverlayRenderer {
             bufferSource.endBatch(fillType);
 
             if (snapshot != null) {
-                renderForces(poseStack, bufferSource, rotationPoint);
+                renderForces(poseStack, bufferSource, rotationPoint, clientSubLevel);
             }
         } finally {
             mvStack.popMatrix();
@@ -188,12 +189,43 @@ public final class ForceOverlayRenderer {
             double length,
             float r, float g, float b) {}
 
+    private static final ResourceLocation GRAVITY_KEY =
+            ResourceLocation.fromNamespaceAndPath("sable", "gravity");
+
     private static void renderForces(final PoseStack poseStack,
                                      final MultiBufferSource.BufferSource bufferSource,
-                                     final Vector3dc rotationPoint) {
-        final double scale = SchematicianClientConfig.METERS_PER_NEWTON.get();
+                                     final Vector3dc rotationPoint,
+                                     final ClientSubLevel clientSubLevel) {
+        final double gravityFraction = SchematicianClientConfig.GRAVITY_ARROW_FRACTION.get();
+        final double saturation = SchematicianClientConfig.ARROW_SATURATION.get();
         final double minLen = SchematicianClientConfig.MIN_ARROW_LENGTH.get();
-        final double maxLen = SchematicianClientConfig.MAX_ARROW_LENGTH.get();
+
+        // Gravity-anchored scaling: gravity is sized to a fraction of the sublevel's bbox height
+        // (Y extent — keeps the ruler vertical-aligned and unaffected by wide-flat hulls).
+        // Forces ≤ gravity scale linearly. Forces > gravity pass through a soft saturation curve
+        // so a balloon with several × gravity worth of lift doesn't overrun the sublevel.
+        final List<ForceClusterer.Cluster> gravityClusters =
+                ForceOverlayClient.smoothedClusters().get(GRAVITY_KEY);
+        if (gravityClusters == null || gravityClusters.isEmpty()) return;
+        final double gravityMagnitude = gravityClusters.get(0).force().length();
+        if (gravityMagnitude < 1.0e-6) return;
+
+        final var bbox = clientSubLevel.boundingBox();
+        final double bboxHeight = bbox.maxY() - bbox.minY();
+        if (bboxHeight <= 0.0) return;
+
+        final double gravityArrowLen = bboxHeight * gravityFraction;
+
+        // Tail sphere (and the cone/shaft caps that derive from it) scales with the sublevel's
+        // max bbox extent so big contraptions get correspondingly visible markers, capped at
+        // 1/3 the CoM cube's width so the bead never visually dominates the CoM marker.
+        final double bboxMaxExtent = Math.max(bbox.maxX() - bbox.minX(),
+                Math.max(bboxHeight, bbox.maxZ() - bbox.minZ()));
+        final double tailSphereRadius = Math.min(MAX_TAIL_SPHERE_RADIUS,
+                bboxMaxExtent * TAIL_SPHERE_PER_BBOX);
+        final double maxConeRadius = tailSphereRadius * CONE_RADIUS_PER_TAIL;
+        final double maxShaftRadius = tailSphereRadius * SHAFT_RADIUS_PER_TAIL;
+        final double maxShapeLength = maxConeRadius / (CONE_LEN_PER_LENGTH * CONE_RADIUS_PER_LEN);
 
         final List<ArrowDraw> arrows = new ArrayList<>();
 
@@ -209,7 +241,8 @@ public final class ForceOverlayRenderer {
             final float b = (color & 0xFF) / 255.0f;
 
             for (final ForceClusterer.Cluster c : entry.getValue()) {
-                final ArrowDraw d = buildArrow(c.pos(), c.force(), rotationPoint, scale, minLen, maxLen, r, g, b);
+                final ArrowDraw d = buildArrow(c.pos(), c.force(), rotationPoint,
+                        gravityMagnitude, gravityArrowLen, saturation, minLen, r, g, b);
                 if (d != null) arrows.add(d);
             }
         }
@@ -224,13 +257,13 @@ public final class ForceOverlayRenderer {
         final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
         final var pose = poseStack.last();
         for (final ArrowDraw a : arrows) {
-            // Shape dimensions saturate at MAX_SHAPE_LENGTH — the cone tip and shaft thickness
+            // Shape dimensions saturate at maxShapeLength — the cone tip and shaft thickness
             // freeze in lock-step. The arrow's total span still uses `a.length`, so longer
             // arrows just get a longer shaft, not a bigger head.
-            final double shapeLen = Math.min(a.length, MAX_SHAPE_LENGTH);
+            final double shapeLen = Math.min(a.length, maxShapeLength);
             final double coneLen = Math.max(0.09, shapeLen * CONE_LEN_PER_LENGTH);
-            final double coneRadius = coneLen * CONE_RADIUS_PER_LEN;
-            final double shaftRadius = coneRadius * SHAFT_RADIUS_PER_CONE;
+            final double coneRadius = Math.min(maxConeRadius, coneLen * CONE_RADIUS_PER_LEN);
+            final double shaftRadius = Math.min(maxShaftRadius, coneRadius * SHAFT_RADIUS_PER_CONE);
             final double shaftEndX = a.tx - a.dirX * coneLen;
             final double shaftEndY = a.ty - a.dirY * coneLen;
             final double shaftEndZ = a.tz - a.dirZ * coneLen;
@@ -249,7 +282,7 @@ public final class ForceOverlayRenderer {
                     coneLen, coneRadius,
                     a.r, a.g, a.b);
 
-            sphere(pose, triConsumer, a.bx, a.by, a.bz, 0.025, 8, 4, a.r, a.g, a.b);
+            sphere(pose, triConsumer, a.bx, a.by, a.bz, tailSphereRadius, 8, 4, a.r, a.g, a.b);
         }
         bufferSource.endBatch(triType);
     }
@@ -339,16 +372,23 @@ public final class ForceOverlayRenderer {
     private static ArrowDraw buildArrow(final Vector3dc forcePoint,
                                         final Vector3dc forceVec,
                                         final Vector3dc rotationPoint,
-                                        final double scale,
+                                        final double gravityMagnitude,
+                                        final double gravityArrowLen,
+                                        final double saturation,
                                         final double minLen,
-                                        final double maxLen,
                                         final float r, final float g, final float b) {
         final double magnitude = forceVec.length();
         if (magnitude < 1.0e-6) return null;
 
-        double length = magnitude * scale;
-        if (length < minLen) length = minLen;
-        if (length > maxLen) length = maxLen;
+        // Linear up to gravity, then soft-saturating above. The saturation curve
+        // `cap * r / (cap + r - 1)` passes through (1,1), is monotonic, and asymptotes to `cap`
+        // — keeps relative magnitudes honest near gravity, prevents runaway above it. Floor at
+        // `minLen` so tiny forces still render with a visible shaft past the cone.
+        final double ratio = magnitude / gravityMagnitude;
+        final double visualRatio = ratio <= 1.0
+                ? ratio
+                : saturation * ratio / (saturation + ratio - 1.0);
+        final double length = Math.max(minLen, visualRatio * gravityArrowLen);
 
         final Vector3d dir = new Vector3d(forceVec).div(magnitude);
 

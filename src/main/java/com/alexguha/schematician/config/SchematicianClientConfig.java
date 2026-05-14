@@ -1,20 +1,23 @@
 package com.alexguha.schematician.config;
 
 import com.alexguha.schematician.Schematician;
+import net.minecraft.resources.ResourceLocation;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.config.ModConfig;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
+import java.util.List;
 import java.util.regex.Pattern;
 
 public final class SchematicianClientConfig {
     private SchematicianClientConfig() {}
 
     public static final ModConfigSpec.IntValue TARGETING_CHUNKS;
-    public static final ModConfigSpec.DoubleValue METERS_PER_NEWTON;
+    public static final ModConfigSpec.DoubleValue GRAVITY_ARROW_FRACTION;
+    public static final ModConfigSpec.DoubleValue ARROW_SATURATION;
     public static final ModConfigSpec.DoubleValue MIN_ARROW_LENGTH;
-    public static final ModConfigSpec.DoubleValue MAX_ARROW_LENGTH;
     public static final ModConfigSpec.DoubleValue CLUSTER_ANGLE_RADIANS;
+    public static final ModConfigSpec.ConfigValue<List<? extends String>> CLUSTERED_FORCE_GROUPS;
     public static final ModConfigSpec.DoubleValue SMOOTHING_FACTOR;
 
     public static final ModConfigSpec.DoubleValue PALETTE_OFFSET;
@@ -36,24 +39,41 @@ public final class SchematicianClientConfig {
                 .comment("Max distance, in chunks, the goggles raycast will search for a sublevel to inspect.")
                 .defineInRange("targetingChunks", 4, 1, 32);
 
-        METERS_PER_NEWTON = builder
-                .comment("Arrow length scale: rendered length (blocks) per newton of force magnitude.",
-                         "Default 0.0002 = 1 block per 5 kN, calibrated so a chunk-sized sublevel's",
-                         "gravity vector reads at ~5 blocks (matching the Contraption Diagram).")
-                .defineInRange("metersPerNewton", 0.0002, 1.0e-9, 1.0);
+        GRAVITY_ARROW_FRACTION = builder
+                .comment("Length of the gravity arrow as a fraction of the sublevel's bbox height (Y extent).",
+                         "Forces ≤ gravity scale linearly from there: length = magnitude * (gravityLength /",
+                         "gravityMagnitude). Forces > gravity soft-saturate (see arrowSaturation). Anchoring",
+                         "to gravity + bbox-height keeps a stable visual ruler per sublevel — small",
+                         "contraptions get small arrows, large ones get large arrows — without snap-to-max.")
+                .defineInRange("gravityArrowFraction", 0.3, 0.05, 4.0);
+
+        ARROW_SATURATION = builder
+                .comment("Soft cap (in units of the gravity arrow length) that arrows above gravity",
+                         "asymptote toward. Formula: visualRatio = cap * r / (cap + r - 1) for r > 1, where",
+                         "r = magnitude / gravityMagnitude. Order is preserved (bigger forces still draw",
+                         "longer arrows) but runaway is killed. With the default cap = 2: r=2 → ~1.33x,",
+                         "r=5 → ~1.67x, r=10 → ~1.82x; asymptotes to 2x regardless of how huge r gets.")
+                .defineInRange("arrowSaturation", 2.0, 1.1, 100.0);
 
         MIN_ARROW_LENGTH = builder
-                .comment("Minimum arrow length in blocks; forces below this are floored to keep small contributions visible.")
+                .comment("Absolute minimum arrow length in blocks so the shaft stays visible past the cone",
+                         "tip + tail bead. Tiny forces (drag, residuals) won't collapse to a sphere-with-cone.")
                 .defineInRange("minArrowLength", 0.3, 0.0, 64.0);
 
-        MAX_ARROW_LENGTH = builder
-                .comment("Maximum arrow length in blocks; caps massive thrust vectors so they don't stretch to infinity.")
-                .defineInRange("maxArrowLength", 8.0, 0.5, 256.0);
-
         CLUSTER_ANGLE_RADIANS = builder
-                .comment("Forces within this angular threshold (radians) are merged into one cluster arrow.",
-                         "Mirrors Simulated's Contraption Diagram default (~0.4 rad).")
+                .comment("Forces within this angular threshold (radians) are merged into one cluster arrow",
+                         "for groups listed in clusteredForceGroups. Mirrors Simulated's Contraption Diagram",
+                         "default (~0.4 rad).")
                 .defineInRange("clusterAngleRadians", 0.4, 0.0, Math.PI);
+
+        CLUSTERED_FORCE_GROUPS = builder
+                .comment("Force-group IDs whose forces are merged into direction clusters. Groups not listed",
+                         "here render one arrow per applied force, mirroring the Contraption Diagram's default",
+                         "(mergeForces = false). Add e.g. \"sable:drag\" to dampen jittery groups.")
+                .defineListAllowEmpty("clusteredForceGroups",
+                        List.of(),
+                        () -> "sable:drag",
+                        o -> o instanceof String s && ResourceLocation.tryParse(s) != null);
 
         SMOOTHING_FACTOR = builder
                 .comment("Exponential-moving-average factor applied to clustered arrows across snapshots.",

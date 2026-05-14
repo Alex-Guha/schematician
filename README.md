@@ -19,7 +19,7 @@ All required — Schematician is built around the Create / Aeronautics / Simulat
 - [Veil](https://modrinth.com/mod/veil) (FoundryMC) — drives the post-process pipeline and custom render types
 - [Create](https://www.curseforge.com/minecraft/mc-mods/create) — provides the goggles overlay system (stress, fluid, rotation tooltips); also required transitively via Aeronautics
 - [Create: Aeronautics](https://github.com/Creators-of-Aeronautics/Simulated-Project) — the drafting-view shader is derived from Aeronautics' `outline_diagram` pipeline and the goggles recipe consumes Aviator's Goggles
-- [Simulated](https://github.com/Creators-of-Aeronautics/Simulated-Project) — supplies the Physics Assembler used in the recipe; the force overlay mirrors its Contraption Diagram data path
+- [Simulated](https://github.com/Creators-of-Aeronautics/Simulated-Project) — supplies the Contraption Diagram used in the recipe; the force overlay mirrors its Contraption Diagram data path
 - [Sable](https://github.com/ryanhcode/sable) — sublevel / rigid-body framework Aeronautics is built on; the overlay reads force snapshots from its `ServerSubLevel`
 
 ## Crafting
@@ -31,10 +31,10 @@ All required — Schematician is built around the Create / Aeronautics / Simulat
 While the drafting view is on, the goggles raycast from the camera. If the crosshair lands inside a sublevel, that sublevel becomes the inspection target and:
 
 - A small grey cube is drawn at the **center of mass** (white while the first force snapshot is in flight).
-- Each **force group** active on the sublevel is drawn as one or more colored arrows. Arrows are placed at the force-application point and aimed along the force; length is proportional to magnitude.
-- Near-parallel forces inside a group are merged into one arrow (mirroring Simulated's `ForceClusterFinder`).
-- Each cluster is temporally smoothed across snapshots so jittery groups (drag in particular) read steady.
-- Past `~5.7` blocks of length the arrow *head* (cone tip + shaft thickness) freezes proportionally; only the shaft extends further. Caps the visual size so long arrows still look like arrows.
+- Each **force group** active on the sublevel is drawn as one or more colored arrows. Arrows are placed at the force-application point and aimed along the force. Length is gravity-anchored: gravity itself is drawn at `gravityArrowFraction × bbox_height`, forces ≤ gravity scale linearly from there, and forces > gravity pass through a soft-saturating curve (asymptoting to `arrowSaturation × gravity_arrow_length`) so an over-powered emitter can't run away past the sublevel.
+- By default every applied force gets its own arrow (mirroring Simulated's Contraption Diagram with `mergeForces = false`). Force-group IDs in `clusteredForceGroups` opt into Simulated's `ForceClusterFinder` merge for near-parallel forces.
+- Clustered groups are temporally smoothed across snapshots so jittery groups (drag in particular) read steady. Pass-through groups skip smoothing since their application points are already stable.
+- Past a sublevel-scaled threshold (the cone/shaft caps key off the tail-bead radius, which itself scales with bbox extent), the arrow *head* (cone tip + shaft thickness) freezes; only the shaft extends further. Caps the visual size so long arrows still look like arrows.
 
 The overlay survives opening and closing the Contraption Diagram on the same sublevel — the dispatcher re-asserts Sable's individual-force-tracking flag every physics tick while a subscription is live.
 
@@ -45,11 +45,12 @@ The overlay survives opening and closing the Contraption Diagram on the same sub
 | key | default | effect |
 | --- | --- | --- |
 | `targetingChunks` | 4 | Max raycast distance in chunks. The crosshair must land within this radius to inspect a sublevel. |
-| `metersPerNewton` | 0.0002 | Arrow length scale. 1 block per 5 kN; calibrated so a chunk-sized sublevel's gravity reads ~5 blocks. |
-| `minArrowLength` | 0.3 | Floor for tiny forces so they're still visible. |
-| `maxArrowLength` | 8.0 | Cap on total arrow length. Past ~5.7 blocks the head freezes; only the shaft extends. |
-| `clusterAngleRadians` | 0.4 | Forces within this angle (radians) merge into one cluster arrow. |
-| `smoothingFactor` | 0.25 | EMA factor across snapshots. Lower = smoother but laggier. |
+| `gravityArrowFraction` | 0.3 | Gravity arrow length as a fraction of the sublevel's bbox **height** (Y extent). Anchors per-sublevel scaling so arrows fit the contraption. |
+| `arrowSaturation` | 2.0 | Asymptotic cap (× gravity arrow length) for forces above gravity. Soft-saturates via `cap·r/(cap+r−1)` — 2× gravity ≈ 1.33×, 5× ≈ 1.67×, 10× ≈ 1.82×; no runaway. |
+| `minArrowLength` | 0.3 | Absolute minimum arrow length in blocks. Stops the shaft from collapsing into the cone+tail bead for tiny drag/residual forces. |
+| `clusterAngleRadians` | 0.4 | Forces within this angle (radians) merge into one cluster arrow (for groups in `clusteredForceGroups`). |
+| `clusteredForceGroups` | `[]` | Force-group IDs that opt into direction clustering + smoothing. Empty = every force renders its own arrow. |
+| `smoothingFactor` | 0.25 | EMA factor across snapshots for clustered groups. Lower = smoother but laggier. |
 | `paletteOffset` | 0.25 | Horizontal lookup (0..1) into the palette texture. Each row is a different colorway. |
 | `pixelate` | true | Toggle the low-res pixelate pass that snaps the screen to a coarser virtual grid. |
 | `pixelScale` | 4.0 | Pixelate intensity: each virtual pixel covers this many screen pixels per axis (1 ≈ off). |
@@ -70,12 +71,6 @@ The in-game tooltip on the goggles uses Create's shift-expand format (same syste
 
 The Shift-expand wiring is registered in [`compat/CreateCompat.java`](src/main/java/com/alexguha/schematician/compat/CreateCompat.java) (`registerGogglesTooltip`), and the always-visible state line + Shift-only toggle hint are emitted from [`item/SchematicianGogglesItem.java`](src/main/java/com/alexguha/schematician/item/SchematicianGogglesItem.java) (`appendHoverText`).
 
-## Roadmap
-
-- [x] **Unique item icon** — `src/main/resources/assets/schematician/textures/item/schematicians_goggles.png` (16×16). Recolored from Aviator's Goggles with brass lens rims.
-- [x] **Unique armor model layers** — `assets/schematician/textures/models/armor/schematicians_goggles_layer_{1,2}.png` (64×32). `layer_1` repainted to match the icon; `layer_2` is unused for a head-only item and stays transparent.
-- [x] **Logo** — `src/main/resources/logo.png` (256×256), nearest-neighbor upscale of the item icon for the CurseForge / Modrinth listing.
-- [ ] Magnitude labels on force arrows (toggleable).
 
 ## Toolchain
 

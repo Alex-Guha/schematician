@@ -27,8 +27,10 @@ import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.UUID;
 import org.joml.Vector3d;
 
@@ -125,16 +127,42 @@ public final class ForceOverlayClient {
     private static void recomputeSmoothedClusters(final ForceSnapshotPacket packet) {
         final double angleThreshold = SchematicianClientConfig.CLUSTER_ANGLE_RADIANS.get();
         final double alpha = SchematicianClientConfig.SMOOTHING_FACTOR.get();
+        final Set<ResourceLocation> clustered = new HashSet<>();
+        for (final String id : SchematicianClientConfig.CLUSTERED_FORCE_GROUPS.get()) {
+            final ResourceLocation parsed = ResourceLocation.tryParse(id);
+            if (parsed != null) clustered.add(parsed);
+        }
 
         final Map<ResourceLocation, List<ForceClusterer.Cluster>> next = new HashMap<>();
         for (final Map.Entry<ResourceLocation, List<QueuedForceGroup.PointForce>> e : packet.forces().entrySet()) {
-            final List<ForceClusterer.Cluster> rawClusters = ForceClusterer.cluster(e.getValue(), angleThreshold);
+            final boolean shouldCluster = clustered.contains(e.getKey());
+            final List<ForceClusterer.Cluster> rawClusters = shouldCluster
+                    ? ForceClusterer.cluster(e.getValue(), angleThreshold)
+                    : asIndividualClusters(e.getValue());
             if (rawClusters.isEmpty()) continue;
 
+            // Skip EMA on unclustered groups: direction-based matching is unreliable when all
+            // arrows in the group point the same way (multiple balloons or wings), and the
+            // application points are already stable since they come from fixed emitter blocks.
+            if (!shouldCluster) {
+                next.put(e.getKey(), rawClusters);
+                continue;
+            }
             final List<ForceClusterer.Cluster> prev = smoothedClusters.getOrDefault(e.getKey(), List.of());
             next.put(e.getKey(), blendClusters(rawClusters, prev, alpha));
         }
         smoothedClusters = next;
+    }
+
+    // Default render path: each PointForce becomes its own one-element Cluster, preserving the
+    // application point and exact force vector. Mirrors Simulated's Contraption Diagram, which
+    // defaults to mergeForces=false and uses ForceClusterFinder.passThrough.
+    private static List<ForceClusterer.Cluster> asIndividualClusters(final List<QueuedForceGroup.PointForce> forces) {
+        final List<ForceClusterer.Cluster> out = new ArrayList<>(forces.size());
+        for (final QueuedForceGroup.PointForce f : forces) {
+            out.add(new ForceClusterer.Cluster(new Vector3d(f.point()), new Vector3d(f.force()), 1));
+        }
+        return out;
     }
 
     // Greedy direction matching: for each new cluster, pair with the unused previous cluster of

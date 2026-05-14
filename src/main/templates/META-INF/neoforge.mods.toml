@@ -12,11 +12,8 @@ credits="Drafting view shader pipeline derived from Create: Aeronautics / Simula
 displayURL="https://github.com/Alex-Guha/Schematician"
 logoFile="logo.png"
 description='''
-Wear Schematician's Goggles to see the world through a Create: Aeronautics drafting-view post-process: edge-detected outlines, palette tone-mapping, and dither shading. Crafted from Aviator's Goggles + a Physics Assembler.
+Wear Schematician's Goggles to see the world through a Create: Aeronautics drafting-view post-process — edge-detected outlines, palette tone-mapping, and dither shading — and to see live force vectors + center of mass on any sublevel you look at. Crafted from Aviator's Goggles + a Contraption Diagram.
 '''
-
-[[mixins]]
-config="${mod_id}.mixins.json"
 
 [[dependencies.${mod_id}]]
     modId="neoforge"
