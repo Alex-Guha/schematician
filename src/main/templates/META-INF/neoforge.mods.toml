@@ -31,10 +31,13 @@ Wear Schematician's Goggles to see the world through a Create: Aeronautics draft
 
 # Veil's PostProcessingManager runs the drafting_view pipeline; nothing in the mod works without it.
 # Pinned to exactly veil_version: Veil 4.0.1+ has visual glitches when combined with Iris/shaders.
+# Single-point Maven range `[x]` is used instead of `[x,x]` — NeoForge 21.1.229 upgraded its
+# maven-artifact dependency to a version that rejects identical-boundary ranges with
+# "Range cannot have identical boundaries", which prevents the mod from loading at all.
 [[dependencies.${mod_id}]]
     modId="veil"
     type="required"
-    versionRange="[${veil_version},${veil_version}]"
+    versionRange="[${veil_version}]"
     ordering="NONE"
     side="CLIENT"
 

@@ -6,5 +6,15 @@
   "item.schematician.schematicians_goggles.tooltip.behaviour1": "Marks its _center of mass_ and draws each _force group_ (_lift_, _drag_, _thrust_, _gravity_, etc.) as a colored vector.",
   "item.schematician.schematicians_goggles.tooltip.state.on": "Drafting view: ON",
   "item.schematician.schematicians_goggles.tooltip.state.off": "Drafting view: OFF",
-  "item.schematician.schematicians_goggles.tooltip.toggle_hint": "Right-click in hand to toggle"
+  "item.schematician.schematicians_goggles.tooltip.toggle_hint": "Right-click in hand to toggle",
+  "hud.schematician.mass": "Mass",
+  "hud.schematician.mass_value": "%s kg",
+  "hud.schematician.force_value": "%s pN",
+  "commands.schematician.tooltip.enabled": "Force tooltip enabled.",
+  "commands.schematician.tooltip.disabled": "Force tooltip disabled.",
+  "commands.schematician.tooltip.sigfigs_on": "Force tooltip rounding enabled.",
+  "commands.schematician.tooltip.sigfigs_off": "Force tooltip rounding disabled — showing two decimal places.",
+  "commands.schematician.tooltip.sigfigs_set": "Force tooltip rounded to %s significant figures (0 = integer precision).",
+  "commands.schematician.tooltip.sigfigs_current_on": "Force tooltip rounding is on at %s significant figures (0 = integer precision).",
+  "commands.schematician.tooltip.sigfigs_current_off": "Force tooltip rounding is off — showing two decimal places."
 }

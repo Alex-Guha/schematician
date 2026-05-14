@@ -20,6 +20,10 @@ public final class SchematicianClientConfig {
     public static final ModConfigSpec.ConfigValue<List<? extends String>> CLUSTERED_FORCE_GROUPS;
     public static final ModConfigSpec.DoubleValue SMOOTHING_FACTOR;
 
+    public static final ModConfigSpec.BooleanValue FORCE_TOOLTIP_ENABLED;
+    public static final ModConfigSpec.BooleanValue FORCE_TOOLTIP_SIG_FIGS_ENABLED;
+    public static final ModConfigSpec.IntValue FORCE_TOOLTIP_SIG_FIGS;
+
     public static final ModConfigSpec.DoubleValue PALETTE_OFFSET;
     public static final ModConfigSpec.BooleanValue PIXELATE;
     public static final ModConfigSpec.DoubleValue PIXEL_SCALE;
@@ -69,7 +73,9 @@ public final class SchematicianClientConfig {
         CLUSTERED_FORCE_GROUPS = builder
                 .comment("Force-group IDs whose forces are merged into direction clusters. Groups not listed",
                          "here render one arrow per applied force, mirroring the Contraption Diagram's default",
-                         "(mergeForces = false). Add e.g. \"sable:drag\" to dampen jittery groups.")
+                         "(mergeForces = false). Add e.g. \"sable:drag\" to dampen jittery groups.",
+                         "Known force-group IDs (from Sable): sable:gravity, sable:drag, sable:levitation,",
+                         "sable:balloon_lift, sable:propulsion, sable:lift, sable:magnetic_force.")
                 .defineListAllowEmpty("clusteredForceGroups",
                         List.of(),
                         () -> "sable:drag",
@@ -80,6 +86,32 @@ public final class SchematicianClientConfig {
                          "1.0 = no smoothing (snap to each tick); lower = more smoothing.",
                          "0.25 ≈ 70% catch-up over 5 ticks; drag in particular jitters less.")
                 .defineInRange("smoothingFactor", 0.25, 0.01, 1.0);
+
+        builder.pop();
+
+        builder.push("force_tooltip");
+
+        FORCE_TOOLTIP_ENABLED = builder
+                .comment("Show the per-sublevel HUD readout (mass + net force per group) while the goggles",
+                         "are active and a sublevel is targeted. Toggle at runtime with",
+                         "/schematician tooltip toggle.")
+                .define("forceTooltipEnabled", true);
+
+        FORCE_TOOLTIP_SIG_FIGS_ENABLED = builder
+                .comment("When false, force/mass values render with two decimal places (e.g. 1,234.56 pN).",
+                         "When true (default), values round to integer precision by default and apply",
+                         "sig-fig rounding above `forceTooltipSigFigs` digits when that value is > 0.",
+                         "Set at runtime with /schematician tooltip sigfigs on|off.")
+                .define("forceTooltipSigFigsEnabled", true);
+
+        FORCE_TOOLTIP_SIG_FIGS = builder
+                .comment("Sig-fig count used while sig-fig rounding is enabled. 0 = integer precision",
+                         "(values render as exact integers with thousands separators, e.g. 1,234,567 pN).",
+                         "When > 0, values whose integer length exceeds this count round to this many",
+                         "leading digits — 3 gives 2610 → 2,610, 12345 → 12,300, 1,234,567 → 1,230,000.",
+                         "Ignored entirely when sig-fig rounding is off. Set at runtime with",
+                         "/schematician tooltip sigfigs <n>.")
+                .defineInRange("forceTooltipSigFigs", 0, 0, 12);
 
         builder.pop();
 

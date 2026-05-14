@@ -38,6 +38,32 @@ While the drafting view is on, the goggles raycast from the camera. If the cross
 
 The overlay survives opening and closing the Contraption Diagram on the same sublevel — the dispatcher re-asserts Sable's individual-force-tracking flag every physics tick while a subscription is live.
 
+### HUD readout
+
+While the overlay is targeting a sublevel, a small tooltip-style panel anchored to the top-right corner reports the sublevel's mass and the **net force magnitude** for each active force group:
+
+```
+Mass: 12,400 kg
+Balloon Lift: 2,610 pN
+Gravity: 1,010 pN
+Drag: 10 pN
+```
+
+Per-group values are vector-summed before the magnitude is taken — so balanced pairs read as ~0 (matching what the arrows tell you), and gravity reads as `mass × g` as expected. Force-group names and colors come from Sable's `ForceGroups` registry. The frame uses the same brown translucent tooltip box Simulated's Contraption Diagram uses for its per-arrow tooltips.
+
+The readout follows the same gating as the arrow overlay — goggles equipped, drafting view on, and a sublevel under the crosshair.
+
+### Commands
+
+Client-side; works in single-player and on servers. Changes persist to `schematician-client.toml`.
+
+| Command | Effect |
+| --- | --- |
+| `/schematician tooltip toggle` | Show or hide the HUD readout. |
+| `/schematician tooltip sigfigs on` / `off` | Round to integer/sig-figs (on) or show 2 decimal places (off). |
+| `/schematician tooltip sigfigs <0..12>` | Set the sig-fig count and ensure rounding is on. `0` = integer precision. |
+| `/schematician tooltip sigfigs` | Print the current setting. |
+
 ### Config
 
 `config/schematician-client.toml` is generated on first launch. All values hot-reload on file save (you may need to rejoin the world for some to take effect).
@@ -56,6 +82,9 @@ The overlay survives opening and closing the Contraption Diagram on the same sub
 | `pixelScale` | 4.0 | Pixelate intensity: each virtual pixel covers this many screen pixels per axis (1 ≈ off). |
 | `lineColor` | "2E3032" | Edge ink color (6-digit hex RGB, optional `#`). |
 | `lineShadowColor` | "696965" | Edge shadow color (6-digit hex RGB); doubled lines read as paper-on-paper. |
+| `forceTooltipEnabled` | true | Show the HUD readout (mass + per-group net force). Also toggleable via `/schematician tooltip toggle`. |
+| `forceTooltipSigFigsEnabled` | true | When false, force/mass values render with two decimal places. When true, rounded to integer or sig-figs per `forceTooltipSigFigs`. |
+| `forceTooltipSigFigs` | 0 | Sig-fig count while rounding is on. `0` = integer precision. `N > 0` buckets values whose integer length exceeds `N` to that many leading digits (12,345 → 12,300 at `N=3`). Ignored when rounding is off. |
 
 ## Tooltip text
 
@@ -105,6 +134,9 @@ With a shader pack loaded (e.g. Iris + BSL), the drafting view's edge detection 
 ```
 
 Output jar lands in `build/libs/`.
+
+## Potential TODO
+- Consider using an item like the wrench to allow user scaling of vectors when wearing schematician goggles
 
 ## Credits
 

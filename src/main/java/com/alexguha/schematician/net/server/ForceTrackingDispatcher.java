@@ -19,6 +19,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.server.level.ServerPlayer;
+import net.neoforged.bus.api.EventPriority;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.player.PlayerEvent;
@@ -82,7 +83,13 @@ public final class ForceTrackingDispatcher {
         }
     }
 
-    @SubscribeEvent
+    // LOWEST priority: Simulated's DiagramEntity.postPhysicsTick listens to the same event and
+    // ends every diagram-recording tick by calling enableIndividualQueuedForcesTracking(false).
+    // ServerSubLevel.prePhysicsTick reads that flag at the START of the next physics tick and
+    // gates lift/drag recording on it — so if Simulated disables AFTER we re-assert, the next
+    // tick records no lift/drag, the snapshot is missing those entries, and the HUD line
+    // vanishes for that frame. Firing last guarantees our re-assert wins for the next tick.
+    @SubscribeEvent(priority = EventPriority.LOWEST)
     public static void onPostPhysicsTick(final ForgeSablePostPhysicsTickEvent event) {
         final SubLevelPhysicsSystem physicsSystem = event.getPhysicsSystem();
         final ServerLevel level = physicsSystem.getLevel();
