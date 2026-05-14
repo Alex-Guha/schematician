@@ -223,8 +223,8 @@ public final class ForceOverlayRenderer {
                     coneLen, coneRadius,
                     a.r, a.g, a.b);
 
-            // Tail sphere — UV sphere at the base of the shaft. ~64 tris per arrow, cheap.
-            sphere(pose, triConsumer, a.bx, a.by, a.bz, 0.05, 8, 4, a.r, a.g, a.b);
+            // Tail bead — UV sphere at the base of the shaft. ~64 tris per arrow, cheap.
+            sphere(pose, triConsumer, a.bx, a.by, a.bz, 0.025, 8, 4, a.r, a.g, a.b);
         }
         bufferSource.endBatch(triType);
     }

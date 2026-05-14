@@ -28,7 +28,7 @@ public final class OverlayRenderTypes extends RenderType {
             false,
             CompositeState.builder()
                     .setShaderState(RENDERTYPE_LINES_SHADER)
-                    .setLineState(new LineStateShard(OptionalDouble.of(3.0)))
+                    .setLineState(new LineStateShard(OptionalDouble.of(5.0)))
                     .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
                     .setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
                     .setOutputState(ITEM_ENTITY_TARGET)

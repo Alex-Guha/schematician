@@ -47,8 +47,8 @@ public final class SchematicianClientConfig {
         SMOOTHING_FACTOR = builder
                 .comment("Exponential-moving-average factor applied to clustered arrows across snapshots.",
                          "1.0 = no smoothing (snap to each tick); lower = more smoothing.",
-                         "0.4 ≈ 80% catch-up over 4 ticks; drag in particular jitters less.")
-                .defineInRange("smoothingFactor", 0.4, 0.01, 1.0);
+                         "0.25 ≈ 70% catch-up over 5 ticks; drag in particular jitters less.")
+                .defineInRange("smoothingFactor", 0.25, 0.01, 1.0);
 
         builder.pop();
 
