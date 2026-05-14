@@ -28,8 +28,9 @@ public final class SchematicianClientConfig {
 
         METERS_PER_NEWTON = builder
                 .comment("Arrow length scale: rendered length (blocks) per newton of force magnitude.",
-                         "Default 0.00002 = 1 block per 50 kN. Tune once real airships are tested.")
-                .defineInRange("metersPerNewton", 0.00002, 1.0e-9, 1.0);
+                         "Default 0.0002 = 1 block per 5 kN, calibrated so a chunk-sized sublevel's",
+                         "gravity vector reads at ~5 blocks (matching the Contraption Diagram).")
+                .defineInRange("metersPerNewton", 0.0002, 1.0e-9, 1.0);
 
         MIN_ARROW_LENGTH = builder
                 .comment("Minimum arrow length in blocks; forces below this are floored to keep small contributions visible.")
