@@ -13,6 +13,7 @@ public final class SchematicianClientConfig {
     public static final ModConfigSpec.DoubleValue MIN_ARROW_LENGTH;
     public static final ModConfigSpec.DoubleValue MAX_ARROW_LENGTH;
     public static final ModConfigSpec.DoubleValue CLUSTER_ANGLE_RADIANS;
+    public static final ModConfigSpec.DoubleValue SMOOTHING_FACTOR;
 
     public static final ModConfigSpec SPEC;
 
@@ -42,6 +43,12 @@ public final class SchematicianClientConfig {
                 .comment("Forces within this angular threshold (radians) are merged into one cluster arrow.",
                          "Mirrors Simulated's Contraption Diagram default (~0.4 rad).")
                 .defineInRange("clusterAngleRadians", 0.4, 0.0, Math.PI);
+
+        SMOOTHING_FACTOR = builder
+                .comment("Exponential-moving-average factor applied to clustered arrows across snapshots.",
+                         "1.0 = no smoothing (snap to each tick); lower = more smoothing.",
+                         "0.4 ≈ 80% catch-up over 4 ticks; drag in particular jitters less.")
+                .defineInRange("smoothingFactor", 0.4, 0.01, 1.0);
 
         builder.pop();
 

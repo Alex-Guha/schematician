@@ -25,9 +25,12 @@ import net.neoforged.neoforge.client.event.ClientTickEvent;
 import net.neoforged.neoforge.network.PacketDistributor;
 import org.jetbrains.annotations.Nullable;
 
+import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
+import org.joml.Vector3d;
 
 // Client-side state for the force overlay:
 //   1. Each client tick, raycast from the camera within `targetingChunks * 16` blocks.
@@ -51,6 +54,12 @@ public final class ForceOverlayClient {
     // that bug is what hid all the force packets in 0.3.3.
     private static long lastHeartbeatTick = -HEARTBEAT_INTERVAL_TICKS;
     private static long localTick;
+
+    // Smoothed clusters per ForceGroup, persisted across snapshots. Each new snapshot's raw
+    // forces are clustered, then matched to the previous smoothed clusters by direction (greedy,
+    // best cosine) and EMA-blended. Unmatched new clusters snap in fresh; unmatched old clusters
+    // are dropped. The renderer reads these directly so clustering only happens once per tick.
+    private static Map<ResourceLocation, List<ForceClusterer.Cluster>> smoothedClusters = new HashMap<>();
 
     public record ForceSnapshot(
             UUID subLevelId,
@@ -83,12 +92,14 @@ public final class ForceOverlayClient {
             // auto-expires after its own timeout once heartbeats stop.
             targetSubLevelId = null;
             snapshot = null;
+            smoothedClusters = new HashMap<>();
             return;
         }
 
         if (!newTarget.equals(targetSubLevelId)) {
             targetSubLevelId = newTarget;
             snapshot = null;
+            smoothedClusters = new HashMap<>();
             lastHeartbeatTick = localTick - HEARTBEAT_INTERVAL_TICKS;
         }
 
@@ -99,6 +110,7 @@ public final class ForceOverlayClient {
 
         if (snapshot != null && localTick - snapshot.receivedAtTick > SNAPSHOT_TTL_TICKS) {
             snapshot = null;
+            smoothedClusters = new HashMap<>();
         }
     }
 
@@ -107,6 +119,62 @@ public final class ForceOverlayClient {
             return;
         }
         snapshot = new ForceSnapshot(packet.subLevelId(), packet.mass(), packet.forces(), localTick);
+        recomputeSmoothedClusters(packet);
+    }
+
+    private static void recomputeSmoothedClusters(final ForceSnapshotPacket packet) {
+        final double angleThreshold = SchematicianClientConfig.CLUSTER_ANGLE_RADIANS.get();
+        final double alpha = SchematicianClientConfig.SMOOTHING_FACTOR.get();
+
+        final Map<ResourceLocation, List<ForceClusterer.Cluster>> next = new HashMap<>();
+        for (final Map.Entry<ResourceLocation, List<QueuedForceGroup.PointForce>> e : packet.forces().entrySet()) {
+            final List<ForceClusterer.Cluster> rawClusters = ForceClusterer.cluster(e.getValue(), angleThreshold);
+            if (rawClusters.isEmpty()) continue;
+
+            final List<ForceClusterer.Cluster> prev = smoothedClusters.getOrDefault(e.getKey(), List.of());
+            next.put(e.getKey(), blendClusters(rawClusters, prev, alpha));
+        }
+        smoothedClusters = next;
+    }
+
+    // Greedy direction matching: for each new cluster, pair with the unused previous cluster of
+    // closest direction (cosine similarity above 0.5 — anti-parallel pairs aren't blended). EMA
+    // matched ones; snap unmatched new ones in fresh. Unmatched previous clusters are dropped
+    // (a force disappeared or merged elsewhere).
+    private static List<ForceClusterer.Cluster> blendClusters(
+            final List<ForceClusterer.Cluster> raw,
+            final List<ForceClusterer.Cluster> prev,
+            final double alpha) {
+        final boolean[] used = new boolean[prev.size()];
+        final List<ForceClusterer.Cluster> out = new ArrayList<>(raw.size());
+
+        for (final ForceClusterer.Cluster n : raw) {
+            int bestIdx = -1;
+            double bestScore = 0.5;
+            for (int i = 0; i < prev.size(); i++) {
+                if (used[i]) continue;
+                final ForceClusterer.Cluster p = prev.get(i);
+                final double na2 = n.force().lengthSquared();
+                final double pa2 = p.force().lengthSquared();
+                if (na2 <= 0.0 || pa2 <= 0.0) continue;
+                final double cos = n.force().dot(p.force()) / Math.sqrt(na2 * pa2);
+                if (cos > bestScore) {
+                    bestScore = cos;
+                    bestIdx = i;
+                }
+            }
+
+            if (bestIdx >= 0) {
+                used[bestIdx] = true;
+                final ForceClusterer.Cluster p = prev.get(bestIdx);
+                final Vector3d pos = new Vector3d(p.pos()).lerp(n.pos(), alpha);
+                final Vector3d force = new Vector3d(p.force()).lerp(n.force(), alpha);
+                out.add(new ForceClusterer.Cluster(pos, force, n.groupSize()));
+            } else {
+                out.add(new ForceClusterer.Cluster(new Vector3d(n.pos()), new Vector3d(n.force()), n.groupSize()));
+            }
+        }
+        return out;
     }
 
     public static @Nullable UUID currentTarget() {
@@ -117,10 +185,15 @@ public final class ForceOverlayClient {
         return snapshot;
     }
 
+    public static Map<ResourceLocation, List<ForceClusterer.Cluster>> smoothedClusters() {
+        return smoothedClusters;
+    }
+
     private static void clear() {
         targetSubLevelId = null;
         snapshot = null;
-        lastHeartbeatTick = Long.MIN_VALUE;
+        smoothedClusters = new HashMap<>();
+        lastHeartbeatTick = -HEARTBEAT_INTERVAL_TICKS;
     }
 
     private static boolean isWearingActiveGoggles(final LocalPlayer player) {

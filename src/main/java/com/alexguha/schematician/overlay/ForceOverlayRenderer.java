@@ -102,7 +102,7 @@ public final class ForceOverlayRenderer {
             bufferSource.endBatch(fillType);
 
             if (snapshot != null) {
-                renderForces(poseStack, bufferSource, snapshot, rotationPoint);
+                renderForces(poseStack, bufferSource, rotationPoint);
             }
         } finally {
             mvStack.popMatrix();
@@ -172,16 +172,16 @@ public final class ForceOverlayRenderer {
 
     private static void renderForces(final PoseStack poseStack,
                                      final MultiBufferSource.BufferSource bufferSource,
-                                     final ForceOverlayClient.ForceSnapshot snapshot,
                                      final Vector3dc rotationPoint) {
         final double scale = SchematicianClientConfig.METERS_PER_NEWTON.get();
         final double minLen = SchematicianClientConfig.MIN_ARROW_LENGTH.get();
         final double maxLen = SchematicianClientConfig.MAX_ARROW_LENGTH.get();
-        final double angleThreshold = SchematicianClientConfig.CLUSTER_ANGLE_RADIANS.get();
 
         final List<ArrowDraw> arrows = new ArrayList<>();
 
-        for (final Map.Entry<ResourceLocation, List<QueuedForceGroup.PointForce>> entry : snapshot.forces().entrySet()) {
+        // Clustering + temporal smoothing live in ForceOverlayClient — see smoothedClusters().
+        // The renderer just reads the pre-smoothed result and applies colors per ForceGroup.
+        for (final Map.Entry<ResourceLocation, List<ForceClusterer.Cluster>> entry : ForceOverlayClient.smoothedClusters().entrySet()) {
             final ForceGroup group = ForceGroups.REGISTRY.get(entry.getKey());
             if (group == null) continue;
 
@@ -190,8 +190,7 @@ public final class ForceOverlayRenderer {
             final float g = ((color >> 8) & 0xFF) / 255.0f;
             final float b = (color & 0xFF) / 255.0f;
 
-            final List<ForceClusterer.Cluster> clusters = ForceClusterer.cluster(entry.getValue(), angleThreshold);
-            for (final ForceClusterer.Cluster c : clusters) {
+            for (final ForceClusterer.Cluster c : entry.getValue()) {
                 final ArrowDraw d = buildArrow(c.pos(), c.force(), rotationPoint, scale, minLen, maxLen, r, g, b);
                 if (d != null) arrows.add(d);
             }
@@ -210,9 +209,10 @@ public final class ForceOverlayRenderer {
         }
         bufferSource.endBatch(lineType);
 
-        // Pass 2: cones.
+        // Pass 2: cone tips + small tail spheres at the force-application point.
         final RenderType triType = OverlayRenderTypes.overlayTriangles();
         final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
+        final var pose = poseStack.last();
         for (final ArrowDraw a : arrows) {
             final double coneLen = Math.max(0.09, a.length * 0.10);
             final double coneRadius = coneLen * 0.40;
@@ -222,8 +222,57 @@ public final class ForceOverlayRenderer {
                     a.perp1, a.perp2,
                     coneLen, coneRadius,
                     a.r, a.g, a.b);
+
+            // Tail sphere — UV sphere at the base of the shaft. ~64 tris per arrow, cheap.
+            sphere(pose, triConsumer, a.bx, a.by, a.bz, 0.05, 8, 4, a.r, a.g, a.b);
         }
         bufferSource.endBatch(triType);
+    }
+
+    // Low-poly UV sphere centered at (cx, cy, cz). lonSegs * latSegs * 2 triangles total.
+    // Reused for the per-arrow tail bead.
+    private static void sphere(final PoseStack.Pose pose, final VertexConsumer consumer,
+                               final double cx, final double cy, final double cz, final double radius,
+                               final int lonSegs, final int latSegs,
+                               final float r, final float g, final float b) {
+        final double[] sinPhi = new double[latSegs + 1];
+        final double[] cosPhi = new double[latSegs + 1];
+        for (int j = 0; j <= latSegs; j++) {
+            final double phi = -Math.PI / 2.0 + Math.PI * j / latSegs;
+            sinPhi[j] = Math.sin(phi);
+            cosPhi[j] = Math.cos(phi);
+        }
+        final double[] sinTheta = new double[lonSegs + 1];
+        final double[] cosTheta = new double[lonSegs + 1];
+        for (int i = 0; i <= lonSegs; i++) {
+            final double theta = 2.0 * Math.PI * i / lonSegs;
+            sinTheta[i] = Math.sin(theta);
+            cosTheta[i] = Math.cos(theta);
+        }
+
+        for (int j = 0; j < latSegs; j++) {
+            final double y0 = sinPhi[j] * radius;
+            final double y1 = sinPhi[j + 1] * radius;
+            final double r0 = cosPhi[j] * radius;
+            final double r1 = cosPhi[j + 1] * radius;
+            for (int i = 0; i < lonSegs; i++) {
+                final double x00 = cosTheta[i] * r0,     z00 = sinTheta[i] * r0;
+                final double x01 = cosTheta[i + 1] * r0, z01 = sinTheta[i + 1] * r0;
+                final double x10 = cosTheta[i] * r1,     z10 = sinTheta[i] * r1;
+                final double x11 = cosTheta[i + 1] * r1, z11 = sinTheta[i + 1] * r1;
+
+                triangle(pose, consumer,
+                        cx + x00, cy + y0, cz + z00,
+                        cx + x10, cy + y1, cz + z10,
+                        cx + x11, cy + y1, cz + z11,
+                        r, g, b);
+                triangle(pose, consumer,
+                        cx + x00, cy + y0, cz + z00,
+                        cx + x11, cy + y1, cz + z11,
+                        cx + x01, cy + y0, cz + z01,
+                        r, g, b);
+            }
+        }
     }
 
     private static ArrowDraw buildArrow(final Vector3dc forcePoint,

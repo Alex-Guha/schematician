@@ -108,6 +108,14 @@ public final class ForceTrackingDispatcher {
                 continue;
             }
 
+            // Tracking is a single shared boolean on the sublevel — Simulated's DiagramEntity
+            // disables it when its recording ticket ends, which wipes ours too. Re-assert it here
+            // every tick while we still have subscribers so closing the Contraption Diagram
+            // doesn't strand the overlay with only synthesized gravity.
+            if (!serverSubLevel.isTrackingIndividualQueuedForces()) {
+                serverSubLevel.enableIndividualQueuedForcesTracking(true);
+            }
+
             final ForceSnapshotPacket packet = buildPacket(serverSubLevel, physicsSystem);
             if (packet == null) continue;
 
