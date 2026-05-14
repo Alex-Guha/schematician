@@ -111,52 +111,68 @@ public final class ForceOverlayRenderer {
     }
 
     private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer, final boolean haveSnapshot) {
-        // Filled cube at the rotation point (== CoM). White when we've got a force snapshot from
-        // the server, magenta while we're still waiting for the first packet so the bad state is
-        // visible at a glance.
+        // Filled cube at the rotation point (== CoM). Faces are subdivided into a 3x3 grid:
+        //   - snapshot received: alternating white / dark-gray cells, the "checkerboard CoM" look.
+        //   - snapshot pending:  all cells white, so the cube reads as plain white during the
+        //     brief loading window. Same vertex count either way; just same color in every cell.
         final double half = 0.08;
-        final float r, g, b;
+        final float lr = 1.0f, lg = 1.0f, lb = 1.0f;
+        final float dr, dg, db;
         if (haveSnapshot) {
-            r = 1.0f; g = 1.0f; b = 1.0f;
+            dr = 0.10f; dg = 0.10f; db = 0.10f;
         } else {
-            r = 1.0f; g = 0.2f; b = 0.9f;
+            dr = lr; dg = lg; db = lb;
         }
-        final float a = 1.0f;
-        quadCube(poseStack, consumer, half, r, g, b, a);
+        checkerCube(poseStack, consumer, half, lr, lg, lb, dr, dg, db, 1.0f);
     }
 
-    // 6 quads forming an axis-aligned cube centered at the origin, edge length 2*half.
-    // QUADS render type, POSITION_COLOR vertex format.
-    private static void quadCube(final PoseStack poseStack, final VertexConsumer consumer,
-                                 final double half,
-                                 final float r, final float g, final float b, final float a) {
+    // Axis-aligned cube centered at the origin, each face subdivided into a 3x3 checkerboard of
+    // alternating colors (light at corners + center, dark at edges). 9 quads/face * 6 faces = 54
+    // quads = 216 vertices. QUADS RenderType, POSITION_COLOR.
+    private static void checkerCube(final PoseStack poseStack, final VertexConsumer consumer,
+                                    final double half,
+                                    final float lr, final float lg, final float lb,
+                                    final float dr, final float dg, final float db,
+                                    final float a) {
         final var pose = poseStack.last();
         final float n = (float) -half;
-        final float p = (float) half;
-        // -X face
-        quad(pose, consumer, n, n, n,  n, p, n,  n, p, p,  n, n, p, r, g, b, a);
-        // +X face
-        quad(pose, consumer, p, n, p,  p, p, p,  p, p, n,  p, n, n, r, g, b, a);
-        // -Y face
-        quad(pose, consumer, n, n, p,  p, n, p,  p, n, n,  n, n, n, r, g, b, a);
-        // +Y face
-        quad(pose, consumer, n, p, n,  p, p, n,  p, p, p,  n, p, p, r, g, b, a);
-        // -Z face
-        quad(pose, consumer, p, n, n,  p, p, n,  n, p, n,  n, n, n, r, g, b, a);
-        // +Z face
-        quad(pose, consumer, n, n, p,  n, p, p,  p, p, p,  p, n, p, r, g, b, a);
+        final float s = (float) (2.0 * half);
+        // (originX, originY, originZ), uAxis (full edge), vAxis (full edge). Each face's origin
+        // is one corner; u/v span the two edges of that face.
+        checkerFace(pose, consumer, n, n, n,  0, s, 0,  0, 0, s,  lr, lg, lb, dr, dg, db, a); // -X
+        checkerFace(pose, consumer, n + s, n, n + s,  0, s, 0,  0, 0, -s,  lr, lg, lb, dr, dg, db, a); // +X
+        checkerFace(pose, consumer, n, n, n + s,  s, 0, 0,  0, 0, -s,  lr, lg, lb, dr, dg, db, a); // -Y
+        checkerFace(pose, consumer, n, n + s, n,  s, 0, 0,  0, 0, s,  lr, lg, lb, dr, dg, db, a); // +Y
+        checkerFace(pose, consumer, n + s, n, n,  0, s, 0,  -s, 0, 0,  lr, lg, lb, dr, dg, db, a); // -Z
+        checkerFace(pose, consumer, n, n, n + s,  0, s, 0,  s, 0, 0,  lr, lg, lb, dr, dg, db, a); // +Z
     }
 
-    private static void quad(final PoseStack.Pose pose, final VertexConsumer consumer,
-                             final float x1, final float y1, final float z1,
-                             final float x2, final float y2, final float z2,
-                             final float x3, final float y3, final float z3,
-                             final float x4, final float y4, final float z4,
-                             final float r, final float g, final float b, final float a) {
-        consumer.addVertex(pose, x1, y1, z1).setColor(r, g, b, a);
-        consumer.addVertex(pose, x2, y2, z2).setColor(r, g, b, a);
-        consumer.addVertex(pose, x3, y3, z3).setColor(r, g, b, a);
-        consumer.addVertex(pose, x4, y4, z4).setColor(r, g, b, a);
+    private static void checkerFace(final PoseStack.Pose pose, final VertexConsumer consumer,
+                                    final float ox, final float oy, final float oz,
+                                    final float ux, final float uy, final float uz,
+                                    final float vx, final float vy, final float vz,
+                                    final float lr, final float lg, final float lb,
+                                    final float dr, final float dg, final float db,
+                                    final float a) {
+        final float third = 1.0f / 3.0f;
+        for (int i = 0; i < 3; i++) {
+            for (int j = 0; j < 3; j++) {
+                final float u0 = i * third;
+                final float u1 = (i + 1) * third;
+                final float v0 = j * third;
+                final float v1 = (j + 1) * third;
+
+                final boolean light = ((i + j) & 1) == 0;
+                final float r = light ? lr : dr;
+                final float g = light ? lg : dg;
+                final float b = light ? lb : db;
+
+                consumer.addVertex(pose, ox + u0 * ux + v0 * vx, oy + u0 * uy + v0 * vy, oz + u0 * uz + v0 * vz).setColor(r, g, b, a);
+                consumer.addVertex(pose, ox + u1 * ux + v0 * vx, oy + u1 * uy + v0 * vy, oz + u1 * uz + v0 * vz).setColor(r, g, b, a);
+                consumer.addVertex(pose, ox + u1 * ux + v1 * vx, oy + u1 * uy + v1 * vy, oz + u1 * uz + v1 * vz).setColor(r, g, b, a);
+                consumer.addVertex(pose, ox + u0 * ux + v1 * vx, oy + u0 * uy + v1 * vy, oz + u0 * uz + v1 * vz).setColor(r, g, b, a);
+            }
+        }
     }
 
     // Precomputed per-cluster geometry. Shared between the two render passes (lines + triangles)
