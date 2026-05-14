@@ -2,6 +2,7 @@ package com.alexguha.schematician.drafting;
 
 import com.alexguha.schematician.Schematician;
 import com.alexguha.schematician.component.SchematicianDataComponents;
+import com.alexguha.schematician.config.SchematicianClientConfig;
 import com.mojang.blaze3d.platform.Window;
 import foundry.veil.api.client.render.VeilRenderSystem;
 import foundry.veil.api.client.render.post.PostPipeline;
@@ -16,22 +17,6 @@ public class DraftingViewHandler {
 
     private static final ResourceLocation POST_PIPELINE_ID = ResourceLocation.fromNamespaceAndPath(Schematician.MODID, "drafting_view");
 
-    // Edge color: dark graphite, blueprint ink.
-    private static final float LINE_R = 0x2E / 255.0f;
-    private static final float LINE_G = 0x30 / 255.0f;
-    private static final float LINE_B = 0x32 / 255.0f;
-
-    // Edge shadow: warm grey, sits between ink and paper so doubled lines read as paper-on-paper.
-    private static final float LINE_SHADOW_R = 0x69 / 255.0f;
-    private static final float LINE_SHADOW_G = 0x69 / 255.0f;
-    private static final float LINE_SHADOW_B = 0x65 / 255.0f;
-
-    // Horizontal offset into the palette texture for tonal mapping; 0..1, tweak to recolor.
-    private static final float PALETTE_OFFSET = 0.25f;
-
-    // Toggle the low-res pixelate pass.
-    private static final boolean PIXELATE = true;
-
     public static void applyIfWearingGoggles() {
         if (!shouldRenderDraftingView()) {
             return;
@@ -44,12 +29,16 @@ public class DraftingViewHandler {
         }
 
         final Window window = Minecraft.getInstance().getWindow();
+        final float[] line = SchematicianClientConfig.parseHexColor(SchematicianClientConfig.LINE_COLOR.get());
+        final float[] lineShadow = SchematicianClientConfig.parseHexColor(SchematicianClientConfig.LINE_SHADOW_COLOR.get());
+        final boolean pixelate = SchematicianClientConfig.PIXELATE.get();
 
-        pipeline.getUniformSafe("LineColor").setVector(LINE_R, LINE_G, LINE_B, 1.0f);
-        pipeline.getUniformSafe("LineShadowColor").setVector(LINE_SHADOW_R, LINE_SHADOW_G, LINE_SHADOW_B, 1.0f);
+        pipeline.getUniformSafe("LineColor").setVector(line[0], line[1], line[2], 1.0f);
+        pipeline.getUniformSafe("LineShadowColor").setVector(lineShadow[0], lineShadow[1], lineShadow[2], 1.0f);
         pipeline.getUniformSafe("InSize").setVector((float) window.getWidth(), (float) window.getHeight());
-        pipeline.getUniformSafe("PaletteOffset").setFloat(PALETTE_OFFSET);
-        pipeline.getUniformSafe("Pixelate").setFloat(PIXELATE ? 1.0f : 0.0f);
+        pipeline.getUniformSafe("PaletteOffset").setFloat(SchematicianClientConfig.PALETTE_OFFSET.get().floatValue());
+        pipeline.getUniformSafe("Pixelate").setFloat(pixelate ? 1.0f : 0.0f);
+        pipeline.getUniformSafe("PixelScale").setFloat(SchematicianClientConfig.PIXEL_SCALE.get().floatValue());
 
         manager.runPipeline(pipeline);
     }

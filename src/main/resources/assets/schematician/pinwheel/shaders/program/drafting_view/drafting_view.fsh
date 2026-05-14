@@ -7,6 +7,7 @@ uniform vec4 LineShadowColor;
 uniform float PaletteOffset;
 uniform vec2 InSize;
 uniform float Pixelate;
+uniform float PixelScale;
 
 in vec2 texCoord;
 in vec2 oneTexel;
@@ -16,11 +17,10 @@ out vec4 fragColor;
 const int bit_depth = 32;
 const float contrast = 1.2;
 const float offset = 0.18f;
-const float pixel_scale = 4.0;
 
 vec2 getVirtualSize() {
     if (Pixelate < 0.5) return InSize;
-    return floor(InSize / pixel_scale);
+    return floor(InSize / max(PixelScale, 1.0));
 }
 
 vec2 pixelate(vec2 uv) {

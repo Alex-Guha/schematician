@@ -1,9 +1,9 @@
 {
   "itemGroup.schematician": "Schematician",
   "item.schematician.schematicians_goggles": "Schematician's Goggles",
-  "item.schematician.schematicians_goggles.tooltip.summary": "Renders a _drafting / blueprint_ post-process and overlays live _physics data_ on sublevels. Inherits the _Create goggle HUD_ while worn.",
+  "item.schematician.schematicians_goggles.tooltip.summary": "Displays a _schematic_ view with _physics data_ on viewed sublevels. Inherits the _Aviator goggle HUD_ while worn.",
   "item.schematician.schematicians_goggles.tooltip.condition1": "When looking at a sublevel",
-  "item.schematician.schematicians_goggles.tooltip.behaviour1": "Marks its _center of mass_ and draws each _force group_ — _lift_, _drag_, _thrust_, _gravity_, etc. — as a colored vector, clustered and smoothed for readability.",
+  "item.schematician.schematicians_goggles.tooltip.behaviour1": "Marks its _center of mass_ and draws each _force group_ (_lift_, _drag_, _thrust_, _gravity_, etc.) as a colored vector.",
   "item.schematician.schematicians_goggles.tooltip.state.on": "Drafting view: ON",
   "item.schematician.schematicians_goggles.tooltip.state.off": "Drafting view: OFF",
   "item.schematician.schematicians_goggles.tooltip.toggle_hint": "Right-click in hand to toggle"

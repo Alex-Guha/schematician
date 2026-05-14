@@ -50,6 +50,11 @@ The overlay survives opening and closing the Contraption Diagram on the same sub
 | `maxArrowLength` | 8.0 | Cap on total arrow length. Past ~5.7 blocks the head freezes; only the shaft extends. |
 | `clusterAngleRadians` | 0.4 | Forces within this angle (radians) merge into one cluster arrow. |
 | `smoothingFactor` | 0.25 | EMA factor across snapshots. Lower = smoother but laggier. |
+| `paletteOffset` | 0.25 | Horizontal lookup (0..1) into the palette texture. Each row is a different colorway. |
+| `pixelate` | true | Toggle the low-res pixelate pass that snaps the screen to a coarser virtual grid. |
+| `pixelScale` | 4.0 | Pixelate intensity: each virtual pixel covers this many screen pixels per axis (1 ≈ off). |
+| `lineColor` | "2E3032" | Edge ink color (6-digit hex RGB, optional `#`). |
+| `lineShadowColor` | "696965" | Edge shadow color (6-digit hex RGB); doubled lines read as paper-on-paper. |
 
 ## Tooltip text
 
@@ -67,12 +72,10 @@ The Shift-expand wiring is registered in [`compat/CreateCompat.java`](src/main/j
 
 ## Roadmap
 
-- [ ] **Unique item icon** — `src/main/resources/assets/schematician/textures/item/schematicians_goggles.png` (16×16). Currently a placeholder derived from Aviator's Goggles.
-- [ ] **Unique armor model layers** — `assets/schematician/textures/models/armor/schematicians_goggles_layer_{1,2}.png` (64×32). Currently placeholders.
-- [ ] Reuse the icon as `src/main/resources/logo.png` (256×256) for the CurseForge / Modrinth listing.
+- [x] **Unique item icon** — `src/main/resources/assets/schematician/textures/item/schematicians_goggles.png` (16×16). Recolored from Aviator's Goggles with brass lens rims.
+- [x] **Unique armor model layers** — `assets/schematician/textures/models/armor/schematicians_goggles_layer_{1,2}.png` (64×32). `layer_1` repainted to match the icon; `layer_2` is unused for a head-only item and stays transparent.
+- [x] **Logo** — `src/main/resources/logo.png` (256×256), nearest-neighbor upscale of the item icon for the CurseForge / Modrinth listing.
 - [ ] Magnitude labels on force arrows (toggleable).
-- [ ] Tier variants (palette / pixelate intensity).
-- [ ] Per-player palette tuning (config or in-game UI).
 
 ## Toolchain
 
