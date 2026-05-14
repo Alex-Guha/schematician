@@ -72,6 +72,25 @@ The in-game tooltip on the goggles uses Create's shift-expand format (same syste
 The Shift-expand wiring is registered in [`compat/CreateCompat.java`](src/main/java/com/alexguha/schematician/compat/CreateCompat.java) (`registerGogglesTooltip`), and the always-visible state line + Shift-only toggle hint are emitted from [`item/SchematicianGogglesItem.java`](src/main/java/com/alexguha/schematician/item/SchematicianGogglesItem.java) (`appendHoverText`).
 
 
+## Known limitations
+
+### Shader-pack compatibility (Iris / Oculus)
+
+With a shader pack loaded (e.g. Iris + BSL), the drafting view's edge detection and palette tone-mapping are washed out by the shader pack's final composite. The drafting view itself still renders, but its blueprint look does not survive — you get the shader pack's lighting/bloom with faint drafting traces underneath. There is no automatic workaround in the mod today; **disable your shader pack while wearing the goggles**.
+
+#### What was tried
+
+- **Soft-dep on the Iris API to force-disable the shader pack while goggles are on.** Reflectively binding to `IrisApi.getInstance().getConfig().setShadersEnabledAndApply(false)` (the v0 toggle lives on `IrisApiConfig`, not on `IrisApi`) and restoring on toggle-off. **Functionally correct** — the pack disabled and the drafting view rendered cleanly. **Abandoned** because `setShadersEnabledAndApply` triggers a full Iris pipeline rebuild (shader recompile + pack reload) every toggle, which takes seconds — unacceptable per-equip UX.
+- **Move the post-process to `RenderGuiEvent.Pre`** so it runs after Iris's final composite. **Failed** — produced a solid white/paper screen. Root cause: vanilla `GameRenderer.render` clears `GL_DEPTH_BUFFER_BIT` between `renderLevel()` returning and the GUI hook (1.21.1 source line 1044), and the drafting-view shader uses `step(0.9999999, depth)` for sky detection — cleared depth reads as "all sky" and the palette's paper color fills the screen.
+- **Mixin into `GameRenderer.render` to run the post-process before that pre-GUI depth clear.** Injecting at the first `RenderSystem.clear(IZ)V` invocation would have kept depth valid while still landing after Iris's composite. **Failed in practice** (visual result still unusable); we did not pin down whether Iris's composite was actually before our injection point or whether some later pass overwrote our output.
+
+#### What hasn't been tried
+
+- **Snapshot the depth + color attachments at Veil's `AFTER_LEVEL` into our own framebuffer**, then sample that snapshot from a post-Iris hook (or from a mixin call site). Sidesteps the depth-clear issue without trying to time-slice between Iris's passes; costs one extra framebuffer copy per drafting-view frame.
+- **Draw the drafting view as a manual fullscreen quad** (no `PostProcessingManager`) at the chosen hook point, fully owning the framebuffer binding and samplers. Decouples us from any assumption Veil's pipeline makes about being dispatched inside its own render path.
+- **Ship the drafting view as an Iris shader pack** and swap to it via Iris when goggles equip. Likely a dead end — same pipeline-rebuild delay as the disable approach.
+- **Mixin into Iris itself** to conditionally skip its final composite. Most invasive; brittle across Iris versions; not attempted.
+
 ## Toolchain
 
 - Java 21
