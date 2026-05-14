@@ -56,16 +56,28 @@ public final class ForceTrackingDispatcher {
     public static void handleSubscribe(final ServerPlayer player, final UUID subLevelId) {
         final ServerLevel level = player.serverLevel();
         final SubLevelContainer container = SubLevelContainer.getContainer(level);
-        if (container == null) return;
+        if (container == null) {
+            Schematician.LOGGER.info("[force-overlay] handleSubscribe: no SubLevelContainer for {}", level.dimension().location());
+            return;
+        }
 
         final SubLevel subLevel = container.getSubLevel(subLevelId);
-        if (!(subLevel instanceof final ServerSubLevel serverSubLevel)) return;
+        if (!(subLevel instanceof final ServerSubLevel serverSubLevel)) {
+            Schematician.LOGGER.info("[force-overlay] handleSubscribe: sublevel {} not found / not server", subLevelId);
+            return;
+        }
 
+        final boolean[] firstSub = {false};
         final Map<UUID, Long> playerMap = SUBSCRIPTIONS.computeIfAbsent(serverSubLevel, k -> {
+            firstSub[0] = true;
             serverSubLevel.enableIndividualQueuedForcesTracking(true);
             return new HashMap<>();
         });
         playerMap.put(player.getUUID(), level.getGameTime());
+        if (firstSub[0]) {
+            Schematician.LOGGER.info("[force-overlay] enabled force tracking for sublevel {} (mass={})",
+                    subLevelId, serverSubLevel.getMassTracker().getMass());
+        }
     }
 
     @SubscribeEvent
@@ -82,6 +94,8 @@ public final class ForceTrackingDispatcher {
         }
     }
 
+    private static long lastDiagnosticTick = Long.MIN_VALUE;
+
     @SubscribeEvent
     public static void onPostPhysicsTick(final ForgeSablePostPhysicsTickEvent event) {
         final SubLevelPhysicsSystem physicsSystem = event.getPhysicsSystem();
@@ -90,6 +104,7 @@ public final class ForceTrackingDispatcher {
         if (server == null) return;
 
         final long now = level.getGameTime();
+        final boolean diag = now - lastDiagnosticTick >= 40L;
 
         final Iterator<Map.Entry<ServerSubLevel, Map<UUID, Long>>> it = SUBSCRIPTIONS.entrySet().iterator();
         while (it.hasNext()) {
@@ -105,11 +120,25 @@ public final class ForceTrackingDispatcher {
             if (players.isEmpty()) {
                 serverSubLevel.enableIndividualQueuedForcesTracking(false);
                 it.remove();
+                Schematician.LOGGER.info("[force-overlay] subscription expired for sublevel {}", serverSubLevel.getUniqueId());
                 continue;
             }
 
             final ForceSnapshotPacket packet = buildPacket(serverSubLevel, physicsSystem);
-            if (packet == null) continue;
+            if (packet == null) {
+                if (diag) {
+                    Schematician.LOGGER.info("[force-overlay] buildPacket returned null for sublevel {} (mass={}, valid={})",
+                            serverSubLevel.getUniqueId(),
+                            serverSubLevel.getMassTracker().getMass(),
+                            !serverSubLevel.getMassTracker().isInvalid());
+                }
+                continue;
+            }
+
+            if (diag) {
+                Schematician.LOGGER.info("[force-overlay] sending snapshot for {} -> {} subscriber(s), {} group(s)",
+                        serverSubLevel.getUniqueId(), players.size(), packet.forces().size());
+            }
 
             for (final UUID playerId : players.keySet()) {
                 final ServerPlayer player = server.getPlayerList().getPlayer(playerId);
@@ -118,6 +147,8 @@ public final class ForceTrackingDispatcher {
                 }
             }
         }
+
+        if (diag) lastDiagnosticTick = now;
     }
 
     private static @Nullable ForceSnapshotPacket buildPacket(final ServerSubLevel serverSubLevel,

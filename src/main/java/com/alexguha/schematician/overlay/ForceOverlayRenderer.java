@@ -91,33 +91,74 @@ public final class ForceOverlayRenderer {
             poseStack.translate(renderPos.x() - camPos.x, renderPos.y() - camPos.y, renderPos.z() - camPos.z);
             poseStack.mulPose(new Quaternionf(renderPose.orientation()));
 
-            final RenderType type = OverlayRenderTypes.forceLines();
-            final VertexConsumer consumer = bufferSource.getBuffer(type);
-
-            renderCenterOfMass(poseStack, consumer);
-
             final ForceOverlayClient.ForceSnapshot snapshot = ForceOverlayClient.currentSnapshot();
-            if (snapshot != null) {
-                renderForces(poseStack, consumer, snapshot, rotationPoint);
-            }
 
-            // Flush so the lines reach the framebuffer while our matrices are still in place.
-            bufferSource.endBatch(type);
+            // CoM cube tints by snapshot state: white = snapshot received, magenta = waiting for
+            // first packet. Lets us tell at a glance whether the server-tracking pipeline is
+            // delivering data versus the client-only marker rendering correctly.
+            final RenderType fillType = OverlayRenderTypes.overlayFill();
+            renderCenterOfMass(poseStack, bufferSource.getBuffer(fillType), snapshot != null);
+            bufferSource.endBatch(fillType);
+
+            if (snapshot != null) {
+                final RenderType lineType = OverlayRenderTypes.forceLines();
+                final VertexConsumer consumer = bufferSource.getBuffer(lineType);
+                renderForces(poseStack, consumer, snapshot, rotationPoint);
+                bufferSource.endBatch(lineType);
+            }
         } finally {
             mvStack.popMatrix();
             RenderSystem.applyModelViewMatrix();
         }
     }
 
-    private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer) {
-        // Compact "dot" marker: 3 short perpendicular line segments through the origin (which is
-        // the rotation point == CoM). Small enough to read as a dot, but the cross shape ensures
-        // a visible silhouette from any viewing angle (a true point can't be drawn via LINES).
+    private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer, final boolean haveSnapshot) {
+        // Filled cube at the rotation point (== CoM). White when we've got a force snapshot from
+        // the server, magenta while we're still waiting for the first packet so the bad state is
+        // visible at a glance.
         final double half = 0.08;
-        final float r = 1.0f, g = 1.0f, b = 1.0f;
-        line(poseStack, consumer, -half, 0, 0,  half, 0, 0, r, g, b, 1, 0, 0);
-        line(poseStack, consumer,  0, -half, 0, 0,  half, 0, r, g, b, 0, 1, 0);
-        line(poseStack, consumer,  0, 0, -half, 0, 0,  half, r, g, b, 0, 0, 1);
+        final float r, g, b;
+        if (haveSnapshot) {
+            r = 1.0f; g = 1.0f; b = 1.0f;
+        } else {
+            r = 1.0f; g = 0.2f; b = 0.9f;
+        }
+        final float a = 1.0f;
+        quadCube(poseStack, consumer, half, r, g, b, a);
+    }
+
+    // 6 quads forming an axis-aligned cube centered at the origin, edge length 2*half.
+    // QUADS render type, POSITION_COLOR vertex format.
+    private static void quadCube(final PoseStack poseStack, final VertexConsumer consumer,
+                                 final double half,
+                                 final float r, final float g, final float b, final float a) {
+        final var pose = poseStack.last();
+        final float n = (float) -half;
+        final float p = (float) half;
+        // -X face
+        quad(pose, consumer, n, n, n,  n, p, n,  n, p, p,  n, n, p, r, g, b, a);
+        // +X face
+        quad(pose, consumer, p, n, p,  p, p, p,  p, p, n,  p, n, n, r, g, b, a);
+        // -Y face
+        quad(pose, consumer, n, n, p,  p, n, p,  p, n, n,  n, n, n, r, g, b, a);
+        // +Y face
+        quad(pose, consumer, n, p, n,  p, p, n,  p, p, p,  n, p, p, r, g, b, a);
+        // -Z face
+        quad(pose, consumer, p, n, n,  p, p, n,  n, p, n,  n, n, n, r, g, b, a);
+        // +Z face
+        quad(pose, consumer, n, n, p,  n, p, p,  p, p, p,  p, n, p, r, g, b, a);
+    }
+
+    private static void quad(final PoseStack.Pose pose, final VertexConsumer consumer,
+                             final float x1, final float y1, final float z1,
+                             final float x2, final float y2, final float z2,
+                             final float x3, final float y3, final float z3,
+                             final float x4, final float y4, final float z4,
+                             final float r, final float g, final float b, final float a) {
+        consumer.addVertex(pose, x1, y1, z1).setColor(r, g, b, a);
+        consumer.addVertex(pose, x2, y2, z2).setColor(r, g, b, a);
+        consumer.addVertex(pose, x3, y3, z3).setColor(r, g, b, a);
+        consumer.addVertex(pose, x4, y4, z4).setColor(r, g, b, a);
     }
 
     private static void renderForces(final PoseStack poseStack,

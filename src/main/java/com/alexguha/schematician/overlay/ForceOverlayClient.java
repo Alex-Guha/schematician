@@ -101,9 +101,16 @@ public final class ForceOverlayClient {
 
     public static void handleSnapshot(final ForceSnapshotPacket packet) {
         if (targetSubLevelId == null || !targetSubLevelId.equals(packet.subLevelId())) {
+            Schematician.LOGGER.info("[force-overlay] received snapshot for {} but currentTarget={} — dropping",
+                    packet.subLevelId(), targetSubLevelId);
             return;
         }
+        final boolean firstForThisTarget = snapshot == null;
         snapshot = new ForceSnapshot(packet.subLevelId(), packet.mass(), packet.forces(), localTick);
+        if (firstForThisTarget) {
+            Schematician.LOGGER.info("[force-overlay] first snapshot for {} — mass={}, {} group(s): {}",
+                    packet.subLevelId(), packet.mass(), packet.forces().size(), packet.forces().keySet());
+        }
     }
 
     public static @Nullable UUID currentTarget() {

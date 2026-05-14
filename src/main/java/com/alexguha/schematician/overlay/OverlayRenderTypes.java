@@ -36,7 +36,29 @@ public final class OverlayRenderTypes extends RenderType {
                     .setCullState(NO_CULL)
                     .createCompositeState(false));
 
+    // Used for the CoM marker — small filled cube. Same no-depth behavior so the dot stays
+    // visible through occluding blocks.
+    private static final RenderType OVERLAY_FILL = create(
+            Schematician.MODID + ":overlay_fill",
+            DefaultVertexFormat.POSITION_COLOR,
+            VertexFormat.Mode.QUADS,
+            1024,
+            false,
+            false,
+            CompositeState.builder()
+                    .setShaderState(POSITION_COLOR_SHADER)
+                    .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                    .setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
+                    .setOutputState(ITEM_ENTITY_TARGET)
+                    .setWriteMaskState(COLOR_WRITE)
+                    .setCullState(NO_CULL)
+                    .createCompositeState(false));
+
     public static RenderType forceLines() {
         return FORCE_LINES;
+    }
+
+    public static RenderType overlayFill() {
+        return OVERLAY_FILL;
     }
 }
