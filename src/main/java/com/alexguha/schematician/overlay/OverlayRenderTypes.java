@@ -54,11 +54,33 @@ public final class OverlayRenderTypes extends RenderType {
                     .setCullState(NO_CULL)
                     .createCompositeState(false));
 
+    // Triangles variant of OVERLAY_FILL, used for cone arrowheads where a 4-vertex quad would
+    // require degenerate vertices to fake a triangle.
+    private static final RenderType OVERLAY_TRIANGLES = create(
+            Schematician.MODID + ":overlay_triangles",
+            DefaultVertexFormat.POSITION_COLOR,
+            VertexFormat.Mode.TRIANGLES,
+            1024,
+            false,
+            false,
+            CompositeState.builder()
+                    .setShaderState(POSITION_COLOR_SHADER)
+                    .setTransparencyState(TRANSLUCENT_TRANSPARENCY)
+                    .setDepthTestState(RenderStateShard.NO_DEPTH_TEST)
+                    .setOutputState(ITEM_ENTITY_TARGET)
+                    .setWriteMaskState(COLOR_WRITE)
+                    .setCullState(NO_CULL)
+                    .createCompositeState(false));
+
     public static RenderType forceLines() {
         return FORCE_LINES;
     }
 
     public static RenderType overlayFill() {
         return OVERLAY_FILL;
+    }
+
+    public static RenderType overlayTriangles() {
+        return OVERLAY_TRIANGLES;
     }
 }

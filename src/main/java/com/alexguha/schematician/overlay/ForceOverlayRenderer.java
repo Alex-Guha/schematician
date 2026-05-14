@@ -102,9 +102,12 @@ public final class ForceOverlayRenderer {
 
             if (snapshot != null) {
                 final RenderType lineType = OverlayRenderTypes.forceLines();
-                final VertexConsumer consumer = bufferSource.getBuffer(lineType);
-                renderForces(poseStack, consumer, snapshot, rotationPoint);
+                final RenderType triType = OverlayRenderTypes.overlayTriangles();
+                final VertexConsumer lineConsumer = bufferSource.getBuffer(lineType);
+                final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
+                renderForces(poseStack, lineConsumer, triConsumer, snapshot, rotationPoint);
                 bufferSource.endBatch(lineType);
+                bufferSource.endBatch(triType);
             }
         } finally {
             mvStack.popMatrix();
@@ -162,7 +165,8 @@ public final class ForceOverlayRenderer {
     }
 
     private static void renderForces(final PoseStack poseStack,
-                                     final VertexConsumer consumer,
+                                     final VertexConsumer lineConsumer,
+                                     final VertexConsumer triConsumer,
                                      final ForceOverlayClient.ForceSnapshot snapshot,
                                      final Vector3dc rotationPoint) {
         final double scale = SchematicianClientConfig.METERS_PER_NEWTON.get();
@@ -181,13 +185,14 @@ public final class ForceOverlayRenderer {
 
             final List<ForceClusterer.Cluster> clusters = ForceClusterer.cluster(entry.getValue(), angleThreshold);
             for (final ForceClusterer.Cluster c : clusters) {
-                drawArrow(poseStack, consumer, c.pos(), c.force(), rotationPoint, scale, minLen, maxLen, r, g, b);
+                drawArrow(poseStack, lineConsumer, triConsumer, c.pos(), c.force(), rotationPoint, scale, minLen, maxLen, r, g, b);
             }
         }
     }
 
     private static void drawArrow(final PoseStack poseStack,
-                                  final VertexConsumer consumer,
+                                  final VertexConsumer lineConsumer,
+                                  final VertexConsumer triConsumer,
                                   final Vector3dc forcePoint,
                                   final Vector3dc forceVec,
                                   final Vector3dc rotationPoint,
@@ -213,28 +218,74 @@ public final class ForceOverlayRenderer {
         final double tz = bz + dir.z * length;
 
         // Shaft.
-        line(poseStack, consumer, bx, by, bz, tx, ty, tz, r, g, b, dir.x, dir.y, dir.z);
+        line(poseStack, lineConsumer, bx, by, bz, tx, ty, tz, r, g, b, dir.x, dir.y, dir.z);
 
-        // Arrowhead: 4 short backwards-angled lines splayed off-axis.
+        // Cone tip — half the length of the old 4-prong head and narrower.
         final Vector3d ref = Math.abs(dir.y) < 0.9 ? new Vector3d(0, 1, 0) : new Vector3d(1, 0, 0);
         final Vector3d perp1 = new Vector3d(dir).cross(ref).normalize();
         final Vector3d perp2 = new Vector3d(dir).cross(perp1).normalize();
 
-        final double headLen = Math.max(0.18, length * 0.2);
-        final double headSplay = headLen * 0.55;
+        final double coneLen = Math.max(0.09, length * 0.10);
+        final double coneRadius = coneLen * 0.40;
 
-        final double baseX = tx - dir.x * headLen;
-        final double baseY = ty - dir.y * headLen;
-        final double baseZ = tz - dir.z * headLen;
+        cone(poseStack, triConsumer,
+                tx, ty, tz,
+                dir.x, dir.y, dir.z,
+                perp1, perp2,
+                coneLen, coneRadius,
+                r, g, b);
+    }
 
-        for (int i = 0; i < 4; i++) {
-            final Vector3d axis = (i % 2 == 0) ? perp1 : perp2;
-            final double sign = (i < 2) ? 1.0 : -1.0;
-            line(poseStack, consumer,
-                    baseX + axis.x * headSplay * sign, baseY + axis.y * headSplay * sign, baseZ + axis.z * headSplay * sign,
-                    tx, ty, tz,
-                    r, g, b, dir.x, dir.y, dir.z);
+    // Cone aimed forward along `dir`. Tip at (tipX, tipY, tipZ), base disc centered at
+    // (tip - dir*length). Drawn as `segments` side triangles + a closing base fan.
+    private static void cone(final PoseStack poseStack, final VertexConsumer consumer,
+                             final double tipX, final double tipY, final double tipZ,
+                             final double dx, final double dy, final double dz,
+                             final Vector3d perp1, final Vector3d perp2,
+                             final double length, final double radius,
+                             final float r, final float g, final float b) {
+        final int segments = 10;
+        final double baseX = tipX - dx * length;
+        final double baseY = tipY - dy * length;
+        final double baseZ = tipZ - dz * length;
+
+        final double[] cx = new double[segments + 1];
+        final double[] cy = new double[segments + 1];
+        final double[] cz = new double[segments + 1];
+        for (int i = 0; i <= segments; i++) {
+            final double angle = 2.0 * Math.PI * i / segments;
+            final double c = Math.cos(angle);
+            final double s = Math.sin(angle);
+            cx[i] = baseX + (perp1.x * c + perp2.x * s) * radius;
+            cy[i] = baseY + (perp1.y * c + perp2.y * s) * radius;
+            cz[i] = baseZ + (perp1.z * c + perp2.z * s) * radius;
         }
+
+        final var pose = poseStack.last();
+        for (int i = 0; i < segments; i++) {
+            // Side wall: tip → ring[i] → ring[i+1]
+            triangle(pose, consumer,
+                    tipX, tipY, tipZ,
+                    cx[i], cy[i], cz[i],
+                    cx[i + 1], cy[i + 1], cz[i + 1],
+                    r, g, b);
+            // Base cap: center → ring[i+1] → ring[i] (reversed winding so it's outward-facing)
+            triangle(pose, consumer,
+                    baseX, baseY, baseZ,
+                    cx[i + 1], cy[i + 1], cz[i + 1],
+                    cx[i], cy[i], cz[i],
+                    r, g, b);
+        }
+    }
+
+    private static void triangle(final PoseStack.Pose pose, final VertexConsumer consumer,
+                                 final double x1, final double y1, final double z1,
+                                 final double x2, final double y2, final double z2,
+                                 final double x3, final double y3, final double z3,
+                                 final float r, final float g, final float b) {
+        consumer.addVertex(pose, (float) x1, (float) y1, (float) z1).setColor(r, g, b, 1.0f);
+        consumer.addVertex(pose, (float) x2, (float) y2, (float) z2).setColor(r, g, b, 1.0f);
+        consumer.addVertex(pose, (float) x3, (float) y3, (float) z3).setColor(r, g, b, 1.0f);
     }
 
     private static void line(final PoseStack poseStack, final VertexConsumer consumer,
