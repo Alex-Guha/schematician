@@ -38,7 +38,7 @@ public final class SchematicianClientConfig {
 
         MAX_ARROW_LENGTH = builder
                 .comment("Maximum arrow length in blocks; caps massive thrust vectors so they don't stretch to infinity.")
-                .defineInRange("maxArrowLength", 64.0, 0.5, 256.0);
+                .defineInRange("maxArrowLength", 8.0, 0.5, 256.0);
 
         CLUSTER_ANGLE_RADIANS = builder
                 .comment("Forces within this angular threshold (radians) are merged into one cluster arrow.",
