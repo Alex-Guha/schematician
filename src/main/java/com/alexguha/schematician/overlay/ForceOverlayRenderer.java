@@ -197,24 +197,28 @@ public final class ForceOverlayRenderer {
 
         if (arrows.isEmpty()) return;
 
-        // Pass 1: shafts. Must complete fully (write + endBatch) before we touch any other
-        // RenderType — MultiBufferSource.BufferSource.getBuffer auto-ends the previous buffer's
-        // building state, and writing to an ended consumer throws "Not building!" (the 0.3.5
-        // crash).
-        final RenderType lineType = OverlayRenderTypes.forceLines();
-        final VertexConsumer lineConsumer = bufferSource.getBuffer(lineType);
-        for (final ArrowDraw a : arrows) {
-            line(poseStack, lineConsumer, a.bx, a.by, a.bz, a.tx, a.ty, a.tz, a.r, a.g, a.b, a.dirX, a.dirY, a.dirZ);
-        }
-        bufferSource.endBatch(lineType);
-
-        // Pass 2: cone tips + small tail spheres at the force-application point.
+        // Single pass — shaft cylinder, cone tip, and tail bead are all triangles, so we only
+        // need one RenderType. Replaces the previous LINES shaft, which kept a constant pixel
+        // width at any distance and visually engulfed the cone tip when the arrow was small on
+        // screen. A 3D cylinder scales with view distance like the cone does.
         final RenderType triType = OverlayRenderTypes.overlayTriangles();
         final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
         final var pose = poseStack.last();
         for (final ArrowDraw a : arrows) {
             final double coneLen = Math.max(0.09, a.length * 0.10);
             final double coneRadius = coneLen * 0.40;
+            final double shaftRadius = coneRadius * 0.35;
+            final double shaftEndX = a.tx - a.dirX * coneLen;
+            final double shaftEndY = a.ty - a.dirY * coneLen;
+            final double shaftEndZ = a.tz - a.dirZ * coneLen;
+
+            cylinder(pose, triConsumer,
+                    a.bx, a.by, a.bz,
+                    shaftEndX, shaftEndY, shaftEndZ,
+                    a.perp1, a.perp2,
+                    shaftRadius, 6,
+                    a.r, a.g, a.b);
+
             cone(poseStack, triConsumer,
                     a.tx, a.ty, a.tz,
                     a.dirX, a.dirY, a.dirZ,
@@ -222,10 +226,45 @@ public final class ForceOverlayRenderer {
                     coneLen, coneRadius,
                     a.r, a.g, a.b);
 
-            // Tail bead — UV sphere at the base of the shaft. ~64 tris per arrow, cheap.
             sphere(pose, triConsumer, a.bx, a.by, a.bz, 0.025, 8, 4, a.r, a.g, a.b);
         }
         bufferSource.endBatch(triType);
+    }
+
+    // Capped-on-the-cone-side, open-on-the-tail-side cylinder running from (x0..) to (x1..)
+    // along the axis spanned by perp1/perp2. The tail bead sphere closes the base end; the cone
+    // closes the tip end. `segments` controls the polygon count around the circumference.
+    private static void cylinder(final PoseStack.Pose pose, final VertexConsumer consumer,
+                                 final double x0, final double y0, final double z0,
+                                 final double x1, final double y1, final double z1,
+                                 final Vector3d perp1, final Vector3d perp2,
+                                 final double radius,
+                                 final int segments,
+                                 final float r, final float g, final float b) {
+        for (int i = 0; i < segments; i++) {
+            final double a0 = 2.0 * Math.PI * i / segments;
+            final double a1 = 2.0 * Math.PI * (i + 1) / segments;
+            final double c0 = Math.cos(a0) * radius, s0 = Math.sin(a0) * radius;
+            final double c1 = Math.cos(a1) * radius, s1 = Math.sin(a1) * radius;
+
+            final double offX0 = perp1.x * c0 + perp2.x * s0;
+            final double offY0 = perp1.y * c0 + perp2.y * s0;
+            final double offZ0 = perp1.z * c0 + perp2.z * s0;
+            final double offX1 = perp1.x * c1 + perp2.x * s1;
+            final double offY1 = perp1.y * c1 + perp2.y * s1;
+            final double offZ1 = perp1.z * c1 + perp2.z * s1;
+
+            triangle(pose, consumer,
+                    x0 + offX0, y0 + offY0, z0 + offZ0,
+                    x1 + offX0, y1 + offY0, z1 + offZ0,
+                    x1 + offX1, y1 + offY1, z1 + offZ1,
+                    r, g, b);
+            triangle(pose, consumer,
+                    x0 + offX0, y0 + offY0, z0 + offZ0,
+                    x1 + offX1, y1 + offY1, z1 + offZ1,
+                    x0 + offX1, y0 + offY1, z0 + offZ1,
+                    r, g, b);
+        }
     }
 
     // Low-poly UV sphere centered at (cx, cy, cz). lonSegs * latSegs * 2 triangles total.
@@ -355,20 +394,6 @@ public final class ForceOverlayRenderer {
         consumer.addVertex(pose, (float) x1, (float) y1, (float) z1).setColor(r, g, b, 1.0f);
         consumer.addVertex(pose, (float) x2, (float) y2, (float) z2).setColor(r, g, b, 1.0f);
         consumer.addVertex(pose, (float) x3, (float) y3, (float) z3).setColor(r, g, b, 1.0f);
-    }
-
-    private static void line(final PoseStack poseStack, final VertexConsumer consumer,
-                             final double x1, final double y1, final double z1,
-                             final double x2, final double y2, final double z2,
-                             final float r, final float g, final float b,
-                             final double nx, final double ny, final double nz) {
-        final var pose = poseStack.last();
-        consumer.addVertex(pose, (float) x1, (float) y1, (float) z1)
-                .setColor(r, g, b, 1.0f)
-                .setNormal(pose, (float) nx, (float) ny, (float) nz);
-        consumer.addVertex(pose, (float) x2, (float) y2, (float) z2)
-                .setColor(r, g, b, 1.0f)
-                .setNormal(pose, (float) nx, (float) ny, (float) nz);
     }
 
     private static boolean isWearingActiveGoggles(final LocalPlayer player) {
