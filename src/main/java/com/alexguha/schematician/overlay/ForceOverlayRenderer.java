@@ -58,9 +58,22 @@ public final class ForceOverlayRenderer {
     // CoM cube half-edge (so the cube's edge length is 2 * COM_HALF). Referenced by both the
     // cube renderer and the shaft thickness cap below so the two stay in sync.
     private static final double COM_HALF = 0.08;
+
+    // Arrow-head shape coefficients. Everything else (shaft thickness, cone tip dimensions)
+    // is derived from these so a single change here cascades cleanly.
+    private static final double CONE_LEN_PER_LENGTH = 0.10;     // cone is 10% of the arrow length
+    private static final double CONE_RADIUS_PER_LEN = 0.40;     // cone base radius = 40% of cone length
+    private static final double SHAFT_RADIUS_PER_CONE = 0.35;   // shaft radius = 35% of cone base radius
+
     // Cap arrow cylinder radius at the CoM cube half-edge — diameter then matches cube width.
-    // Past length ~5.7 blocks the shaft would otherwise outgrow the cube and look chunky.
     private static final double MAX_SHAFT_RADIUS = COM_HALF;
+
+    // The arrow length at which the shaft naturally reaches MAX_SHAFT_RADIUS. Past this point
+    // we feed `MAX_SHAPE_LENGTH` (not the actual length) into the shape calculations, so the
+    // cone tip + shaft thickness freeze together — only the shaft *span* keeps extending.
+    // Without this, long arrows grew an oversized cone on a capped shaft and looked balloon-y.
+    private static final double MAX_SHAPE_LENGTH =
+            MAX_SHAFT_RADIUS / (CONE_LEN_PER_LENGTH * CONE_RADIUS_PER_LEN * SHAFT_RADIUS_PER_CONE);
 
     public static void onRenderStage(final VeilRenderLevelStageEvent.Stage stage,
                                      final MultiBufferSource.BufferSource bufferSource,
@@ -211,9 +224,13 @@ public final class ForceOverlayRenderer {
         final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
         final var pose = poseStack.last();
         for (final ArrowDraw a : arrows) {
-            final double coneLen = Math.max(0.09, a.length * 0.10);
-            final double coneRadius = coneLen * 0.40;
-            final double shaftRadius = Math.min(coneRadius * 0.35, MAX_SHAFT_RADIUS);
+            // Shape dimensions saturate at MAX_SHAPE_LENGTH — the cone tip and shaft thickness
+            // freeze in lock-step. The arrow's total span still uses `a.length`, so longer
+            // arrows just get a longer shaft, not a bigger head.
+            final double shapeLen = Math.min(a.length, MAX_SHAPE_LENGTH);
+            final double coneLen = Math.max(0.09, shapeLen * CONE_LEN_PER_LENGTH);
+            final double coneRadius = coneLen * CONE_RADIUS_PER_LEN;
+            final double shaftRadius = coneRadius * SHAFT_RADIUS_PER_CONE;
             final double shaftEndX = a.tx - a.dirX * coneLen;
             final double shaftEndY = a.ty - a.dirY * coneLen;
             final double shaftEndZ = a.tz - a.dirZ * coneLen;
