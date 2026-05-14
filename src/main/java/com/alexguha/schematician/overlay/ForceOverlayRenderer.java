@@ -55,6 +55,13 @@ import java.util.UUID;
 public final class ForceOverlayRenderer {
     private ForceOverlayRenderer() {}
 
+    // CoM cube half-edge (so the cube's edge length is 2 * COM_HALF). Referenced by both the
+    // cube renderer and the shaft thickness cap below so the two stay in sync.
+    private static final double COM_HALF = 0.08;
+    // Cap arrow cylinder radius at the CoM cube half-edge — diameter then matches cube width.
+    // Past length ~5.7 blocks the shaft would otherwise outgrow the cube and look chunky.
+    private static final double MAX_SHAFT_RADIUS = COM_HALF;
+
     public static void onRenderStage(final VeilRenderLevelStageEvent.Stage stage,
                                      final MultiBufferSource.BufferSource bufferSource,
                                      final Camera camera,
@@ -114,14 +121,13 @@ public final class ForceOverlayRenderer {
         // Filled cube at the rotation point (== CoM). Light-gray once we have a force snapshot,
         // plain white while we're still waiting — gives a subtle but visible loading affordance
         // without the colored tint of earlier iterations.
-        final double half = 0.08;
         final float r, g, b;
         if (haveSnapshot) {
             r = 0.75f; g = 0.75f; b = 0.75f;
         } else {
             r = 1.0f; g = 1.0f; b = 1.0f;
         }
-        quadCube(poseStack, consumer, half, r, g, b, 1.0f);
+        quadCube(poseStack, consumer, COM_HALF, r, g, b, 1.0f);
     }
 
     // 6 quads forming an axis-aligned cube centered at the origin, edge length 2*half.
@@ -207,7 +213,7 @@ public final class ForceOverlayRenderer {
         for (final ArrowDraw a : arrows) {
             final double coneLen = Math.max(0.09, a.length * 0.10);
             final double coneRadius = coneLen * 0.40;
-            final double shaftRadius = coneRadius * 0.35;
+            final double shaftRadius = Math.min(coneRadius * 0.35, MAX_SHAFT_RADIUS);
             final double shaftEndX = a.tx - a.dirX * coneLen;
             final double shaftEndY = a.ty - a.dirY * coneLen;
             final double shaftEndZ = a.tz - a.dirZ * coneLen;
