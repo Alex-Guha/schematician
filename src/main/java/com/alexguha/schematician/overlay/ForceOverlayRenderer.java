@@ -30,6 +30,7 @@ import org.joml.Quaternionf;
 import org.joml.Vector3d;
 import org.joml.Vector3dc;
 
+import java.util.ArrayList;
 import java.util.List;
 import java.util.Map;
 import java.util.UUID;
@@ -101,13 +102,7 @@ public final class ForceOverlayRenderer {
             bufferSource.endBatch(fillType);
 
             if (snapshot != null) {
-                final RenderType lineType = OverlayRenderTypes.forceLines();
-                final RenderType triType = OverlayRenderTypes.overlayTriangles();
-                final VertexConsumer lineConsumer = bufferSource.getBuffer(lineType);
-                final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
-                renderForces(poseStack, lineConsumer, triConsumer, snapshot, rotationPoint);
-                bufferSource.endBatch(lineType);
-                bufferSource.endBatch(triType);
+                renderForces(poseStack, bufferSource, snapshot, rotationPoint);
             }
         } finally {
             mvStack.popMatrix();
@@ -164,15 +159,27 @@ public final class ForceOverlayRenderer {
         consumer.addVertex(pose, x4, y4, z4).setColor(r, g, b, a);
     }
 
+    // Precomputed per-cluster geometry. Shared between the two render passes (lines + triangles)
+    // so we cluster the snapshot once. Coordinates are still in block-frame; the actual draw
+    // subtracts rotationPoint per-pass.
+    private record ArrowDraw(
+            double bx, double by, double bz,
+            double tx, double ty, double tz,
+            double dirX, double dirY, double dirZ,
+            Vector3d perp1, Vector3d perp2,
+            double length,
+            float r, float g, float b) {}
+
     private static void renderForces(final PoseStack poseStack,
-                                     final VertexConsumer lineConsumer,
-                                     final VertexConsumer triConsumer,
+                                     final MultiBufferSource.BufferSource bufferSource,
                                      final ForceOverlayClient.ForceSnapshot snapshot,
                                      final Vector3dc rotationPoint) {
         final double scale = SchematicianClientConfig.METERS_PER_NEWTON.get();
         final double minLen = SchematicianClientConfig.MIN_ARROW_LENGTH.get();
         final double maxLen = SchematicianClientConfig.MAX_ARROW_LENGTH.get();
         final double angleThreshold = SchematicianClientConfig.CLUSTER_ANGLE_RADIANS.get();
+
+        final List<ArrowDraw> arrows = new ArrayList<>();
 
         for (final Map.Entry<ResourceLocation, List<QueuedForceGroup.PointForce>> entry : snapshot.forces().entrySet()) {
             final ForceGroup group = ForceGroups.REGISTRY.get(entry.getKey());
@@ -185,23 +192,49 @@ public final class ForceOverlayRenderer {
 
             final List<ForceClusterer.Cluster> clusters = ForceClusterer.cluster(entry.getValue(), angleThreshold);
             for (final ForceClusterer.Cluster c : clusters) {
-                drawArrow(poseStack, lineConsumer, triConsumer, c.pos(), c.force(), rotationPoint, scale, minLen, maxLen, r, g, b);
+                final ArrowDraw d = buildArrow(c.pos(), c.force(), rotationPoint, scale, minLen, maxLen, r, g, b);
+                if (d != null) arrows.add(d);
             }
         }
+
+        if (arrows.isEmpty()) return;
+
+        // Pass 1: shafts. Must complete fully (write + endBatch) before we touch any other
+        // RenderType — MultiBufferSource.BufferSource.getBuffer auto-ends the previous buffer's
+        // building state, and writing to an ended consumer throws "Not building!" (the 0.3.5
+        // crash).
+        final RenderType lineType = OverlayRenderTypes.forceLines();
+        final VertexConsumer lineConsumer = bufferSource.getBuffer(lineType);
+        for (final ArrowDraw a : arrows) {
+            line(poseStack, lineConsumer, a.bx, a.by, a.bz, a.tx, a.ty, a.tz, a.r, a.g, a.b, a.dirX, a.dirY, a.dirZ);
+        }
+        bufferSource.endBatch(lineType);
+
+        // Pass 2: cones.
+        final RenderType triType = OverlayRenderTypes.overlayTriangles();
+        final VertexConsumer triConsumer = bufferSource.getBuffer(triType);
+        for (final ArrowDraw a : arrows) {
+            final double coneLen = Math.max(0.09, a.length * 0.10);
+            final double coneRadius = coneLen * 0.40;
+            cone(poseStack, triConsumer,
+                    a.tx, a.ty, a.tz,
+                    a.dirX, a.dirY, a.dirZ,
+                    a.perp1, a.perp2,
+                    coneLen, coneRadius,
+                    a.r, a.g, a.b);
+        }
+        bufferSource.endBatch(triType);
     }
 
-    private static void drawArrow(final PoseStack poseStack,
-                                  final VertexConsumer lineConsumer,
-                                  final VertexConsumer triConsumer,
-                                  final Vector3dc forcePoint,
-                                  final Vector3dc forceVec,
-                                  final Vector3dc rotationPoint,
-                                  final double scale,
-                                  final double minLen,
-                                  final double maxLen,
-                                  final float r, final float g, final float b) {
+    private static ArrowDraw buildArrow(final Vector3dc forcePoint,
+                                        final Vector3dc forceVec,
+                                        final Vector3dc rotationPoint,
+                                        final double scale,
+                                        final double minLen,
+                                        final double maxLen,
+                                        final float r, final float g, final float b) {
         final double magnitude = forceVec.length();
-        if (magnitude < 1.0e-6) return;
+        if (magnitude < 1.0e-6) return null;
 
         double length = magnitude * scale;
         if (length < minLen) length = minLen;
@@ -217,23 +250,11 @@ public final class ForceOverlayRenderer {
         final double ty = by + dir.y * length;
         final double tz = bz + dir.z * length;
 
-        // Shaft.
-        line(poseStack, lineConsumer, bx, by, bz, tx, ty, tz, r, g, b, dir.x, dir.y, dir.z);
-
-        // Cone tip — half the length of the old 4-prong head and narrower.
         final Vector3d ref = Math.abs(dir.y) < 0.9 ? new Vector3d(0, 1, 0) : new Vector3d(1, 0, 0);
         final Vector3d perp1 = new Vector3d(dir).cross(ref).normalize();
         final Vector3d perp2 = new Vector3d(dir).cross(perp1).normalize();
 
-        final double coneLen = Math.max(0.09, length * 0.10);
-        final double coneRadius = coneLen * 0.40;
-
-        cone(poseStack, triConsumer,
-                tx, ty, tz,
-                dir.x, dir.y, dir.z,
-                perp1, perp2,
-                coneLen, coneRadius,
-                r, g, b);
+        return new ArrowDraw(bx, by, bz, tx, ty, tz, dir.x, dir.y, dir.z, perp1, perp2, length, r, g, b);
     }
 
     // Cone aimed forward along `dir`. Tip at (tipX, tipY, tipZ), base disc centered at
