@@ -1,5 +1,6 @@
 package com.alexguha.schematician;
 
+import com.alexguha.schematician.drafting.DraftingShaders;
 import com.alexguha.schematician.drafting.DraftingViewHandler;
 import com.alexguha.schematician.overlay.ForceOverlayRenderer;
 import com.alexguha.schematician.overlay.ForceTooltipOverlay;
@@ -18,6 +19,7 @@ public class SchematicianClient {
 
     public SchematicianClient(final IEventBus modEventBus) {
         modEventBus.addListener(SchematicianClient::onRegisterGuiLayers);
+        modEventBus.addListener(DraftingShaders::onRegisterShaders);
     }
 
     // NeoForge's AFTER_LEVEL is the 1:1 analogue of Veil's AFTER_LEVEL (per Veil's STAGE_MAPPING

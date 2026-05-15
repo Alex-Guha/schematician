@@ -1,0 +1,9 @@
+{
+  "blend": { "func": "add", "srcrgb": "one", "dstrgb": "zero" },
+  "vertex": "schematician:drafting_upscale",
+  "fragment": "schematician:drafting_upscale",
+  "attributes": ["Position"],
+  "samplers": [
+    { "name": "DiffuseSampler0" }
+  ]
+}
