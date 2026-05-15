@@ -73,6 +73,7 @@ Client-side; works in single-player and on servers. Changes persist to `schemati
 | `gravityArrowFraction` | 0.3 | Gravity arrow length as a fraction of the sublevel's bbox **height** (Y extent). Anchors per-sublevel scaling so arrows fit the contraption. |
 | `arrowSaturation` | 2.0 | Asymptotic cap (× gravity arrow length) for forces above gravity. Soft-saturates via `cap·r/(cap+r−1)` — 2× gravity ≈ 1.33×, 5× ≈ 1.67×, 10× ≈ 1.82×; no runaway. |
 | `minArrowLength` | 0.3 | Absolute minimum arrow length in blocks. Stops the shaft from collapsing into the cone+tail bead for tiny drag/residual forces. |
+| `minOverlayPixelSize` | 8.0 | Minimum on-screen size (framebuffer pixels) of the CoM cube edge. When the cube would otherwise be smaller, the cube + tail bead + arrow shaft/cone *thicknesses* scale up by the matching factor; arrow lengths and application-point offsets from the CoM stay anchored in world units so the gravity-anchored length ruler reads honestly. Close sublevels where the cube already exceeds this floor are untouched. `0` disables. |
 | `clusterAngleRadians` | 0.4 | Forces within this angle (radians) merge into one cluster arrow (for groups in `clusteredForceGroups`). |
 | `clusteredForceGroups` | `[]` | Force-group IDs that opt into direction clustering + smoothing. Empty = every force renders its own arrow. |
 | `smoothingFactor` | 0.25 | EMA factor across snapshots for clustered groups. Lower = smoother but laggier. |

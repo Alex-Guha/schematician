@@ -16,6 +16,7 @@ public final class SchematicianClientConfig {
     public static final ModConfigSpec.DoubleValue GRAVITY_ARROW_FRACTION;
     public static final ModConfigSpec.DoubleValue ARROW_SATURATION;
     public static final ModConfigSpec.DoubleValue MIN_ARROW_LENGTH;
+    public static final ModConfigSpec.DoubleValue MIN_OVERLAY_PIXEL_SIZE;
     public static final ModConfigSpec.DoubleValue CLUSTER_ANGLE_RADIANS;
     public static final ModConfigSpec.ConfigValue<List<? extends String>> CLUSTERED_FORCE_GROUPS;
     public static final ModConfigSpec.DoubleValue SMOOTHING_FACTOR;
@@ -63,6 +64,16 @@ public final class SchematicianClientConfig {
                 .comment("Absolute minimum arrow length in blocks so the shaft stays visible past the cone",
                          "tip + tail bead. Tiny forces (drag, residuals) won't collapse to a sphere-with-cone.")
                 .defineInRange("minArrowLength", 0.3, 0.0, 64.0);
+
+        MIN_OVERLAY_PIXEL_SIZE = builder
+                .comment("Minimum on-screen size (in framebuffer pixels) for the CoM cube's edge length.",
+                         "When the cube would render smaller than this — typically because the sublevel is",
+                         "far from the camera — the entire overlay (cube + arrow shafts/cones/tail beads, and",
+                         "their application-point offsets from the CoM) is uniformly scaled around the CoM so",
+                         "the cube hits this floor. Large sublevels viewed from far away stay legible; close-up",
+                         "sublevels where the cube is already bigger than the floor are untouched (scale = 1).",
+                         "Set to 0 to disable.")
+                .defineInRange("minOverlayPixelSize", 8.0, 0.0, 256.0);
 
         CLUSTER_ANGLE_RADIANS = builder
                 .comment("Forces within this angular threshold (radians) are merged into one cluster arrow",

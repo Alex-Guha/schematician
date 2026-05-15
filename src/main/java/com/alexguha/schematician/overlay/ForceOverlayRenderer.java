@@ -114,17 +114,25 @@ public final class ForceOverlayRenderer {
             poseStack.translate(renderPos.x() - camPos.x, renderPos.y() - camPos.y, renderPos.z() - camPos.z);
             poseStack.mulPose(new Quaternionf(renderPose.orientation()));
 
+            // Min on-screen pixel size for the overlay. Applied selectively: the CoM cube edge,
+            // tail bead radius, and arrow shaft/cone *thicknesses* scale up by this factor at
+            // distance, but arrow *lengths* and application-point offsets from the CoM stay anchored
+            // in world units. Otherwise a uniform scale makes arrows read as much longer than the
+            // gravity-anchored ruler implies. At close range (cube already exceeds floor on screen)
+            // scale = 1 and nothing changes.
+            final double scale = overlayPixelScale(mc, renderPos, camPos);
+
             final ForceOverlayClient.ForceSnapshot snapshot = ForceOverlayClient.currentSnapshot();
 
             // CoM cube tints by snapshot state: white = snapshot received, magenta = waiting for
             // first packet. Lets us tell at a glance whether the server-tracking pipeline is
             // delivering data versus the client-only marker rendering correctly.
             final RenderType fillType = OverlayRenderTypes.overlayFill();
-            renderCenterOfMass(poseStack, bufferSource.getBuffer(fillType), snapshot != null);
+            renderCenterOfMass(poseStack, bufferSource.getBuffer(fillType), snapshot != null, scale);
             bufferSource.endBatch(fillType);
 
             if (snapshot != null) {
-                renderForces(poseStack, bufferSource, rotationPoint, clientSubLevel);
+                renderForces(poseStack, bufferSource, rotationPoint, clientSubLevel, scale);
             }
         } finally {
             mvStack.popMatrix();
@@ -132,7 +140,7 @@ public final class ForceOverlayRenderer {
         }
     }
 
-    private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer, final boolean haveSnapshot) {
+    private static void renderCenterOfMass(final PoseStack poseStack, final VertexConsumer consumer, final boolean haveSnapshot, final double scale) {
         // Filled cube at the rotation point (== CoM). Light-gray once we have a force snapshot,
         // plain white while we're still waiting — gives a subtle but visible loading affordance
         // without the colored tint of earlier iterations.
@@ -142,7 +150,7 @@ public final class ForceOverlayRenderer {
         } else {
             r = 1.0f; g = 1.0f; b = 1.0f;
         }
-        quadCube(poseStack, consumer, COM_HALF, r, g, b, 1.0f);
+        quadCube(poseStack, consumer, COM_HALF * scale, r, g, b, 1.0f);
     }
 
     // 6 quads forming an axis-aligned cube centered at the origin, edge length 2*half.
@@ -196,7 +204,8 @@ public final class ForceOverlayRenderer {
     private static void renderForces(final PoseStack poseStack,
                                      final MultiBufferSource.BufferSource bufferSource,
                                      final Vector3dc rotationPoint,
-                                     final ClientSubLevel clientSubLevel) {
+                                     final ClientSubLevel clientSubLevel,
+                                     final double scale) {
         final double gravityFraction = SchematicianClientConfig.GRAVITY_ARROW_FRACTION.get();
         final double saturation = SchematicianClientConfig.ARROW_SATURATION.get();
         final double minLen = SchematicianClientConfig.MIN_ARROW_LENGTH.get();
@@ -222,8 +231,12 @@ public final class ForceOverlayRenderer {
         // 1/3 the CoM cube's width so the bead never visually dominates the CoM marker.
         final double bboxMaxExtent = Math.max(bbox.maxX() - bbox.minX(),
                 Math.max(bboxHeight, bbox.maxZ() - bbox.minZ()));
-        final double tailSphereRadius = Math.min(MAX_TAIL_SPHERE_RADIUS,
-                bboxMaxExtent * TAIL_SPHERE_PER_BBOX);
+        // Tail bead radius caps against the CoM cube *as scaled* — so when the cube is bumped up
+        // by the pixel-size floor, the bead stays bounded to 1/3 of the (now larger) cube width.
+        // Cone/shaft thickness caps then ride along with the bead. Arrow length is intentionally
+        // left untouched so it stays anchored to the gravity-fraction × bbox ruler.
+        final double tailSphereRadius = Math.min(MAX_TAIL_SPHERE_RADIUS * scale,
+                bboxMaxExtent * TAIL_SPHERE_PER_BBOX * scale);
         final double maxConeRadius = tailSphereRadius * CONE_RADIUS_PER_TAIL;
         final double maxShaftRadius = tailSphereRadius * SHAFT_RADIUS_PER_TAIL;
         final double maxShapeLength = maxConeRadius / (CONE_LEN_PER_LENGTH * CONE_RADIUS_PER_LEN);
@@ -458,6 +471,30 @@ public final class ForceOverlayRenderer {
         consumer.addVertex(pose, (float) x1, (float) y1, (float) z1).setColor(r, g, b, 1.0f);
         consumer.addVertex(pose, (float) x2, (float) y2, (float) z2).setColor(r, g, b, 1.0f);
         consumer.addVertex(pose, (float) x3, (float) y3, (float) z3).setColor(r, g, b, 1.0f);
+    }
+
+    // Scale factor that brings the CoM cube up to the configured min on-screen pixel size at the
+    // current camera distance. Returns 1.0 when the cube is already big enough (or when the floor
+    // is disabled / camera math is degenerate). Uses framebuffer pixels and the vertical FOV so
+    // the floor is honest on hi-DPI displays.
+    private static double overlayPixelScale(final Minecraft mc, final Vector3dc renderPos, final Vec3 camPos) {
+        final double minPx = SchematicianClientConfig.MIN_OVERLAY_PIXEL_SIZE.get();
+        if (minPx <= 0.0) return 1.0;
+
+        final int viewportHeight = mc.getWindow().getHeight();
+        if (viewportHeight <= 0) return 1.0;
+
+        final double dx = renderPos.x() - camPos.x;
+        final double dy = renderPos.y() - camPos.y;
+        final double dz = renderPos.z() - camPos.z;
+        final double distance = Math.sqrt(dx * dx + dy * dy + dz * dz);
+        if (distance <= 0.0) return 1.0;
+
+        final double fovDeg = mc.options.fov().get();
+        final double worldPerPixel = 2.0 * distance * Math.tan(Math.toRadians(fovDeg) * 0.5) / viewportHeight;
+        final double minWorldEdge = minPx * worldPerPixel;
+        final double nominalEdge = 2.0 * COM_HALF;
+        return Math.max(1.0, minWorldEdge / nominalEdge);
     }
 
     private static boolean isWearingActiveGoggles(final LocalPlayer player) {
