@@ -27,7 +27,9 @@ sourceSets.main.resources {
 }
 
 repositories {
-    // Veil (FoundryMC) is published here; drafting_view reuses its PostProcessingManager.
+    // Veil (FoundryMC) — needed compile-time only because Sable's ForceGroups registry leaks
+    // foundry.veil.platform.registry.RegistryObject in its API (ForceGroups.GRAVITY's type).
+    // At runtime Veil is supplied transitively via Sable's own mod manifest.
     maven {
         name = "BlameJared"
         url = "https://maven.blamejared.com/"
@@ -133,16 +135,12 @@ configurations {
 }
 
 dependencies {
-    // Veil — required at compile + runtime for foundry.veil.api.client.render.* (PostPipeline,
-    // PostProcessingManager, VeilRenderLevelStageEvent). compileOnly + localRuntime so we don't
-    // publish a maven pom dep — at install time Veil is resolved by NeoForge's mod dependency
-    // declaration in neoforge.mods.toml.
-    // `exclude group: "maven.modrinth"` skips transitive deps Veil pulls from the Modrinth maven
-    // (Iris/Sodium); we don't have that repo wired and don't need them.
+    // Veil — compileOnly only. We don't call Veil ourselves, but Sable's ForceGroups exposes
+    // foundry.veil.platform.registry.RegistryObject in its public API, so the compiler needs
+    // the class on the path to resolve ForceGroups.GRAVITY.get(). At install time Veil is
+    // pulled in via Sable's own manifest dependency — Schematician doesn't declare it.
+    // `exclude group: "maven.modrinth"` skips Iris/Sodium transitives we don't have wired.
     compileOnly("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") {
-        exclude group: "maven.modrinth"
-    }
-    localRuntime("foundry.veil:veil-neoforge-${minecraft_version}:${veil_version}") {
         exclude group: "maven.modrinth"
     }
 
@@ -210,49 +208,18 @@ def baseMetadataProperties = [
         mod_name               : mod_name,
         mod_license            : mod_license,
         mod_version            : mod_version,
-        veil_version           : veil_version,
 ]
 var generateModMetadata = tasks.register("generateModMetadata", ProcessResources) {
-    var replaceProperties = baseMetadataProperties + [
-            veil_version_range : "[${veil_version}]".toString(),
-    ]
-    inputs.properties replaceProperties
-    expand replaceProperties
+    inputs.properties baseMetadataProperties
+    expand baseMetadataProperties
     from "src/main/templates"
     into "build/generated/sources/modMetadata"
-}
-// Dev variant — same template, but with the Veil upper bound opened. Trades the shader
-// fidelity guarantee (see README's "Shader-pack compatibility" section) for the ability to
-// run against newer Veil releases. Consumed by the `devJar` task below.
-var generateModMetadataDev = tasks.register("generateModMetadataDev", ProcessResources) {
-    var replaceProperties = baseMetadataProperties + [
-            veil_version_range : "[${veil_version},)".toString(),
-    ]
-    inputs.properties replaceProperties
-    expand replaceProperties
-    from "src/main/templates"
-    into "build/generated/sources/modMetadataDev"
 }
 // Include the output of "generateModMetadata" as an input directory for the build
 // this works with both building through Gradle and the IDE.
 sourceSets.main.resources.srcDir generateModMetadata
 // To avoid having to run "generateModMetadata" manually, make it run on every project reload
 neoForge.ideSyncTask generateModMetadata
-
-// Dev jar — reuses the main jar's classes and resources, but swaps in the dev-variant
-// neoforge.mods.toml (Veil upper bound opened). Produced alongside the normal jar on every
-// `./gradlew build`; lands in build/libs/ as `<archivesName>-<version>-dev.jar`.
-var devJar = tasks.register("devJar", Jar) {
-    dependsOn tasks.jar, generateModMetadataDev
-    archiveClassifier = "dev"
-    from(zipTree(tasks.jar.archiveFile)) {
-        exclude "META-INF/neoforge.mods.toml"
-    }
-    from(generateModMetadataDev) {
-        include "META-INF/neoforge.mods.toml"
-    }
-}
-tasks.named("assemble").configure { dependsOn devJar }
 
 // Example configuration to allow publishing using the maven-publish plugin
 publishing {

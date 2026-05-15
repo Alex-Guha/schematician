@@ -29,20 +29,6 @@ Wear Schematician's Goggles to see the world through a Create: Aeronautics draft
     ordering="NONE"
     side="BOTH"
 
-# Veil's PostProcessingManager runs the drafting_view pipeline; nothing in the mod works without it.
-# The release jar pins to exactly veil_version: Veil 4.0.1+ has visual glitches when combined
-# with Iris/shaders. The `-dev` jar (see build.gradle's `devJar` task) opens the upper bound so
-# the mod loads against newer Veil at the cost of those Iris glitches.
-# Single-point Maven range `[x]` is used instead of `[x,x]` for the pinned case — NeoForge
-# 21.1.229 upgraded its maven-artifact dependency to a version that rejects identical-boundary
-# ranges with "Range cannot have identical boundaries", which prevents the mod from loading at all.
-[[dependencies.${mod_id}]]
-    modId="veil"
-    type="required"
-    versionRange="${veil_version_range}"
-    ordering="NONE"
-    side="CLIENT"
-
 # Create — required transitively via Aeronautics, but declared here so a missing-Create install
 # fails fast with a clear message and so we can register with Create's goggles-overlay system.
 [[dependencies.${mod_id}]]

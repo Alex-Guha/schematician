@@ -16,7 +16,6 @@ All required — Schematician is built around the Create / Aeronautics / Simulat
 
 - Minecraft 1.21.1
 - NeoForge 21.1.226+
-- [Veil](https://modrinth.com/mod/veil) (FoundryMC) **4.0.0 exactly** — drives the post-process pipeline and custom render types. Pinned because 4.0.1+ has visual glitches under Iris/shaders.
 - [Create](https://www.curseforge.com/minecraft/mc-mods/create) — provides the goggles overlay system (stress, fluid, rotation tooltips); also required transitively via Aeronautics
 - [Create: Aeronautics](https://github.com/Creators-of-Aeronautics/Simulated-Project) — the drafting-view shader is derived from Aeronautics' `outline_diagram` pipeline and the goggles recipe consumes Aviator's Goggles
 - [Simulated](https://github.com/Creators-of-Aeronautics/Simulated-Project) — supplies the Contraption Diagram used in the recipe; the force overlay mirrors its Contraption Diagram data path
@@ -105,20 +104,9 @@ The Shift-expand wiring is registered in [`compat/CreateCompat.java`](src/main/j
 
 ### Shader-pack compatibility (Iris / Oculus)
 
-With a shader pack loaded (e.g. Iris + BSL), the drafting view's edge detection and palette tone-mapping are washed out by the shader pack's final composite. The drafting view itself still renders, but its blueprint look does not survive — you get the shader pack's lighting/bloom with faint drafting traces underneath. There is no automatic workaround in the mod today; **disable your shader pack while wearing the goggles**.
+With a shader pack loaded (e.g. Iris + BSL), the drafting view's edge detection and palette tone-mapping are washed out by the shader pack's final composite. The drafting view itself still renders, but its blueprint look does not survive — you get the shader pack's lighting/bloom with faint drafting traces underneath. **Disable your shader pack while wearing the goggles** for the intended look.
 
-#### What was tried
-
-- **Soft-dep on the Iris API to force-disable the shader pack while goggles are on.** Reflectively binding to `IrisApi.getInstance().getConfig().setShadersEnabledAndApply(false)` (the v0 toggle lives on `IrisApiConfig`, not on `IrisApi`) and restoring on toggle-off. **Functionally correct** — the pack disabled and the drafting view rendered cleanly. **Abandoned** because `setShadersEnabledAndApply` triggers a full Iris pipeline rebuild (shader recompile + pack reload) every toggle, which takes seconds — unacceptable per-equip UX.
-- **Move the post-process to `RenderGuiEvent.Pre`** so it runs after Iris's final composite. **Failed** — produced a solid white/paper screen. Root cause: vanilla `GameRenderer.render` clears `GL_DEPTH_BUFFER_BIT` between `renderLevel()` returning and the GUI hook (1.21.1 source line 1044), and the drafting-view shader uses `step(0.9999999, depth)` for sky detection — cleared depth reads as "all sky" and the palette's paper color fills the screen.
-- **Mixin into `GameRenderer.render` to run the post-process before that pre-GUI depth clear.** Injecting at the first `RenderSystem.clear(IZ)V` invocation would have kept depth valid while still landing after Iris's composite. **Failed in practice** (visual result still unusable); we did not pin down whether Iris's composite was actually before our injection point or whether some later pass overwrote our output.
-
-#### What hasn't been tried
-
-- **Snapshot the depth + color attachments at Veil's `AFTER_LEVEL` into our own framebuffer**, then sample that snapshot from a post-Iris hook (or from a mixin call site). Sidesteps the depth-clear issue without trying to time-slice between Iris's passes; costs one extra framebuffer copy per drafting-view frame.
-- **Draw the drafting view as a manual fullscreen quad** (no `PostProcessingManager`) at the chosen hook point, fully owning the framebuffer binding and samplers. Decouples us from any assumption Veil's pipeline makes about being dispatched inside its own render path.
-- **Ship the drafting view as an Iris shader pack** and swap to it via Iris when goggles equip. Likely a dead end — same pipeline-rebuild delay as the disable approach.
-- **Mixin into Iris itself** to conditionally skip its final composite. Most invasive; brittle across Iris versions; not attempted.
+The post-process is now owned by the mod (manual fullscreen-quad pass against the main framebuffer's color + depth textures at `RenderLevelStageEvent.AFTER_LEVEL`) rather than dispatched through a third-party post-process manager. That gives us direct control over where in the frame the pass runs — a follow-up pass at fixing Iris compatibility is now on the table by experimenting with the hook point (before vs after Iris's final composite) and/or snapshotting depth before vanilla's pre-GUI depth clear.
 
 ## Toolchain
 
@@ -127,19 +115,23 @@ With a shader pack loaded (e.g. Iris + BSL), the drafting view's edge detection 
 - ModDevGradle 2.0.141
 - Parchment mappings on top of Mojmap
 
+### Compile-classpath note: Veil
+
+`build.gradle` declares Veil as `compileOnly` even though Schematician's `neoforge.mods.toml` does not depend on Veil and we no longer call Veil's API ourselves. The compile dep exists because Sable's `ForceGroups.GRAVITY` field is typed as Veil's `RegistryObject<ForceGroup>` — calling `.get()` on it requires `foundry.veil.platform.registry.RegistryObject` on the compile classpath. At runtime Veil is supplied by Sable's own jar-in-jar bundle (Sable ships `META-INF/jarjar/veil-neoforge-1.21.1-4.0.0.jar`), so any working Schematician install has Veil loaded even though Schematician doesn't declare it. The cleanest way to drop this last tether would be an upstream Sable change that exposes the gravity force-group's `ResourceLocation` directly without forcing callers to traverse the Veil-typed RegistryObject.
+
 ## Build
 
 ```bash
 ./gradlew build
 ```
 
-Two jars land in `build/libs/`:
-
-- `schematician-<version>.jar` — release build. Pins Veil to exactly `veil_version` so the drafting view's shader fidelity is guaranteed (see "Shader-pack compatibility" above).
-- `schematician-<version>-dev.jar` — dev build. Identical classes; the only difference is `neoforge.mods.toml` opens the Veil version range to `[veil_version,)`. Use this when you want to run against a newer Veil and accept the Iris/shader visual glitches that motivated the pin.
+Output jar lands in `build/libs/` as `schematician-<version>.jar`.
 
 ## Potential TODO
 - Consider using an item like the wrench to allow user scaling of vectors when wearing schematician goggles
+- Take a second swing at Iris/Oculus compat now that we own the post-process. Concrete experiments worth running:
+  - Move the dispatch hook from `AFTER_LEVEL` to a point after Iris's final composite (likely via a mixin against `GameRenderer.render`), while making sure we land before vanilla's pre-GUI `RenderSystem.clear(GL_DEPTH_BUFFER_BIT)` — the drafting-view shader uses `step(0.9999999, depth)` for sky detection, so a cleared depth buffer reads as "all sky" and washes the screen to paper color.
+  - Alternative: snapshot main's color + depth attachments into our own framebuffer *at* `AFTER_LEVEL` (where depth is still valid), then run the post-process from a later hook against that snapshot. Sidesteps the depth-clear issue at the cost of one extra framebuffer copy per drafting-view frame.
 
 ## Credits
 

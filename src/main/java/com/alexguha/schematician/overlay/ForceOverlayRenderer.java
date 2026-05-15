@@ -42,9 +42,10 @@ import java.util.UUID;
 // without being palette-shifted itself. Uses OverlayRenderTypes.forceLines() to disable depth
 // testing, so vectors and the CoM marker remain visible through the sublevel's own blocks.
 //
-// Matrix handling: the post-process call clobbers RenderSystem's modelview matrix (it sets up
-// screen-space matrices for the fullscreen quad and doesn't restore them). We seed it from the
-// event's modelViewMatrix, draw, then restore via push/pop on the modelview stack. Without
+// Matrix handling: by the time AFTER_LEVEL fires, the world modelview matrix has been popped
+// off RenderSystem's modelview stack — the top is no longer the camera-relative world
+// transform we need. We seed it from the event's modelViewMatrix (which IS that transform,
+// passed as an event arg), draw, then restore via push/pop on the modelview stack. Without
 // this, vertices submitted in world-relative coords render in identity-view space (the overlay
 // appears glued to the camera, not to the sublevel).
 //
@@ -102,8 +103,7 @@ public final class ForceOverlayRenderer {
         final Vector3dc rotationPoint = renderPose.rotationPoint();
         final Vec3 camPos = camera.getPosition();
 
-        // Restore the world-render modelview matrix that the drafting-view post-process clobbered
-        // when it bound its fullscreen quad pipeline.
+        // Inject the world-render modelview matrix (see class-level matrix-handling note).
         final Matrix4fStack mvStack = RenderSystem.getModelViewStack();
         mvStack.pushMatrix();
         mvStack.set(modelViewMatrix);
