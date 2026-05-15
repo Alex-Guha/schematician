@@ -133,7 +133,10 @@ With a shader pack loaded (e.g. Iris + BSL), the drafting view's edge detection 
 ./gradlew build
 ```
 
-Output jar lands in `build/libs/`.
+Two jars land in `build/libs/`:
+
+- `schematician-<version>.jar` — release build. Pins Veil to exactly `veil_version` so the drafting view's shader fidelity is guaranteed (see "Shader-pack compatibility" above).
+- `schematician-<version>-dev.jar` — dev build. Identical classes; the only difference is `neoforge.mods.toml` opens the Veil version range to `[veil_version,)`. Use this when you want to run against a newer Veil and accept the Iris/shader visual glitches that motivated the pin.
 
 ## Potential TODO
 - Consider using an item like the wrench to allow user scaling of vectors when wearing schematician goggles
