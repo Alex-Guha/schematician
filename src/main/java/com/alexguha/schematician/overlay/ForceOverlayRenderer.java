@@ -13,7 +13,6 @@ import dev.ryanhcode.sable.api.sublevel.SubLevelContainer;
 import dev.ryanhcode.sable.companion.math.Pose3dc;
 import dev.ryanhcode.sable.sublevel.ClientSubLevel;
 import dev.ryanhcode.sable.sublevel.SubLevel;
-import foundry.veil.api.event.VeilRenderLevelStageEvent;
 import net.minecraft.client.Camera;
 import net.minecraft.client.Minecraft;
 import net.minecraft.client.multiplayer.ClientLevel;
@@ -24,6 +23,7 @@ import net.minecraft.resources.ResourceLocation;
 import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.phys.Vec3;
+import net.neoforged.neoforge.client.event.RenderLevelStageEvent;
 import org.joml.Matrix4fStack;
 import org.joml.Matrix4fc;
 import org.joml.Quaternionf;
@@ -35,18 +35,18 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
-// Veil render-stage handler for the force overlay.
+// Render-stage handler for the force overlay.
 //
-// Renders at AFTER_LEVEL so we land after DraftingViewHandler.applyIfWearingGoggles has run the
-// post-process pipeline — the overlay then draws on top of the post-processed image without
-// being palette-shifted itself. Uses OverlayRenderTypes.forceLines() to disable depth testing,
-// so vectors and the CoM marker remain visible through the sublevel's own blocks.
+// Runs at AFTER_LEVEL so we land after DraftingViewHandler.applyIfWearingGoggles
+// has run the post-process pipeline — the overlay then draws on top of the post-processed image
+// without being palette-shifted itself. Uses OverlayRenderTypes.forceLines() to disable depth
+// testing, so vectors and the CoM marker remain visible through the sublevel's own blocks.
 //
 // Matrix handling: the post-process call clobbers RenderSystem's modelview matrix (it sets up
 // screen-space matrices for the fullscreen quad and doesn't restore them). We seed it from the
-// frustumMatrix the event handed us, draw, then restore via push/pop on the modelview stack.
-// Without this, vertices submitted in world-relative coords render in identity-view space (the
-// overlay appears glued to the camera, not to the sublevel).
+// event's modelViewMatrix, draw, then restore via push/pop on the modelview stack. Without
+// this, vertices submitted in world-relative coords render in identity-view space (the overlay
+// appears glued to the camera, not to the sublevel).
 //
 // Coordinate frame: PointForce.point and renderPose.rotationPoint() are both in the sublevel's
 // local block frame. We translate the PoseStack to (renderPose.position() - camera), rotate by
@@ -76,17 +76,18 @@ public final class ForceOverlayRenderer {
     private static final double CONE_RADIUS_PER_TAIL = 1.5;
     private static final double SHAFT_RADIUS_PER_TAIL = 1.0;
 
-    public static void onRenderStage(final VeilRenderLevelStageEvent.Stage stage,
-                                     final MultiBufferSource.BufferSource bufferSource,
-                                     final Camera camera,
-                                     final Matrix4fc frustumMatrix) {
-        if (stage != VeilRenderLevelStageEvent.Stage.AFTER_LEVEL) return;
+    public static void onRenderStage(final RenderLevelStageEvent event) {
+        if (event.getStage() != RenderLevelStageEvent.Stage.AFTER_LEVEL) return;
 
         final Minecraft mc = Minecraft.getInstance();
         final LocalPlayer player = mc.player;
         final ClientLevel level = mc.level;
         if (player == null || level == null) return;
         if (!isWearingActiveGoggles(player)) return;
+
+        final Camera camera = event.getCamera();
+        final Matrix4fc modelViewMatrix = event.getModelViewMatrix();
+        final MultiBufferSource.BufferSource bufferSource = mc.renderBuffers().bufferSource();
 
         final UUID targetId = ForceOverlayClient.currentTarget();
         if (targetId == null) return;
@@ -105,7 +106,7 @@ public final class ForceOverlayRenderer {
         // when it bound its fullscreen quad pipeline.
         final Matrix4fStack mvStack = RenderSystem.getModelViewStack();
         mvStack.pushMatrix();
-        mvStack.set(frustumMatrix);
+        mvStack.set(modelViewMatrix);
         RenderSystem.applyModelViewMatrix();
 
         try {

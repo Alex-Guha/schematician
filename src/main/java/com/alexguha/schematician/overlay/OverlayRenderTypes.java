@@ -7,9 +7,9 @@ import net.minecraft.client.renderer.RenderStateShard;
 import net.minecraft.client.renderer.RenderType;
 
 // Custom RenderTypes for the force overlay. Both are no-depth so the overlay stays visible
-// through occluding sublevel blocks. They render onto the main framebuffer AFTER the
-// drafting-view post-process (caller schedules the draw at AFTER_LEVEL), so the overlay reads
-// as a HUD-like layer rather than being palette-shifted by the shader.
+// through occluding sublevel blocks. They render onto the main framebuffer AFTER the drafting-
+// view post-process (caller schedules the draw at AFTER_LEVEL, post-process first), so the
+// overlay reads as a HUD-like layer rather than being palette-shifted by the shader.
 public final class OverlayRenderTypes extends RenderType {
     private OverlayRenderTypes() {
         super("", null, null, 0, false, false, null, null);
