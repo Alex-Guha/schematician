@@ -8,7 +8,7 @@
   "item.schematician.schematicians_goggles.tooltip.state.off": "Drafting view: OFF",
   "item.schematician.schematicians_goggles.tooltip.toggle_hint": "Right-click in hand to toggle",
   "hud.schematician.mass": "Mass",
-  "hud.schematician.mass_value": "%s kg",
+  "hud.schematician.mass_value": "%s kpg",
   "hud.schematician.force_value": "%s pN",
   "commands.schematician.tooltip.enabled": "Force tooltip enabled.",
   "commands.schematician.tooltip.disabled": "Force tooltip disabled.",
